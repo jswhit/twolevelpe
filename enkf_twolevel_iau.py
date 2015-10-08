@@ -15,12 +15,21 @@ python enkf_twolevel.py covlocal_scale covinflate obshr_interval use_letkf (nsta
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
-# relaxation to prior spread inflation parameter.
-covinflate = float(sys.argv[2])
+# inflation parameters
+# (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
+if len(sys.argv) < 3: #
+    # no inflation factor specified, use Hodyss and Campbell with a=b=1
+    covinflate1 = 1.0; covinflate2 = 1.0
+elif len(sys.argv) == 3:
+    covinflate1 = float(sys.argv[2])
+    covinflate2 = 0.0
+else:
+    covinflate1 = float(sys.argv[2])
+    covinflate2 = float(sys.argv[3])
 # interval to compute increments (in hours) within IAU window.
 #obshr_interval = float(sys.argv[3])
 #use_letkf = bool(int(sys.argv[4]))
-obshr_interval = 0 # 0 for no IAU
+obshr_interval = 6 # 0 for no IAU
 use_letkf = False
 
 profile = bool(os.getenv('PROFILE')) # turn on profiling?
@@ -85,8 +94,8 @@ else:
 nobsall = len(oblatsall) # reset nobsall
 
 print '# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev)
-print '# covlocal_scale=%s km, covinflate=%s, obshr_interval=%s' %\
-(covlocal_scale/1000., covinflate, obshr_interval)
+print '# covlocal_scale=%s km, covinflate1=%s, covinflate2=%s, obshr_interval=%s' %\
+(covlocal_scale/1000., covinflate1, covinflate2, obshr_interval)
 thetaobsall = np.empty((nassim,nobsall),np.float)
 # keep truth upper layer winds interpolated to all ob locations for validation.
 uobsall = np.empty((nassim,nobsall),np.float)
@@ -311,9 +320,11 @@ for ntime in xrange(nstart,nend):
 
     # EnKF update
     if ntime < ntimes_spinup:
-        covinf = covinflate_spinup
+        covinf1 = covinflate_spinup
+        covinf2 = 0.
     else:
-        covinf = covinflate
+        covinf1 = covinflate1
+        covinf2 = covinflate2
     t1 = time.clock()
     if use_letkf:
         wts = letkf_calcwts(hxens,thetaobs-hxensmean,oberrvar,covlocal_ob=covlocal_tmp)
@@ -349,10 +360,10 @@ for ntime in xrange(nstart,nend):
             xens_fg = xens.copy()
             # update state vector.
             if use_letkf:
-                xens = letkf_update(xens,wts,covinf)
+                xens = letkf_update(xens,wts,covinf1,covinf2)
             else:
                 xens =\
-                serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp,covinf)
+                serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp,covinf1,covinf2)
             #print (xens-xens_fg).min(),(xens-xens_fg).max()
             # 1d vector back to 3d arrays.
             for nanal in xrange(nanals):
