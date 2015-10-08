@@ -1,5 +1,5 @@
 Python codes for ensemble data assimilation using a simple
-two-level primitive equation model on a sphere.
+two-level primitive equation spectral model on a sphere.
 
 
 * twolevel.py:  model.
