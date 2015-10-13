@@ -184,24 +184,36 @@ if savedata is not None:
     lon = ncout.createDimension('lon',sp.nlons)
     level = ncout.createDimension('level',2)
     timed = ncout.createDimension('t',None)
-    u_ensmean = ncout.createVariable('uensmean',np.float32,('t','level','lat','lon'),zlib=False)
-    u_ensmean.units = 'meters per second'
-    v_ensmean = ncout.createVariable('vensmean',np.float32,('t','level','lat','lon'),zlib=False)
-    v_ensmean.units = 'meters per second'
-    thet_ensmean = ncout.createVariable('thetensmean',np.float32,('t','lat','lon'),zlib=False)
-    thet_ensmean.units = 'K'
+    u_ensmeanb = ncout.createVariable('uensmeanb',np.float32,('t','level','lat','lon'),zlib=False)
+    u_ensmeanb.units = 'meters per second'
+    v_ensmeanb = ncout.createVariable('vensmeanb',np.float32,('t','level','lat','lon'),zlib=False)
+    v_ensmeanb.units = 'meters per second'
+    thet_ensmeanb = ncout.createVariable('thetensmeanb',np.float32,('t','lat','lon'),zlib=False)
+    thet_ensmeanb.units = 'K'
+    u_ensmeana = ncout.createVariable('uensmeana',np.float32,('t','level','lat','lon'),zlib=False)
+    u_ensmeana.units = 'meters per second'
+    v_ensmeana = ncout.createVariable('vensmeana',np.float32,('t','level','lat','lon'),zlib=False)
+    v_ensmeana.units = 'meters per second'
+    thet_ensmeana = ncout.createVariable('thetensmeana',np.float32,('t','lat','lon'),zlib=False)
+    thet_ensmeana.units = 'K'
     u_truth = ncout.createVariable('utruth',np.float32,('t','level','lat','lon'),zlib=False)
     u_truth.units = 'meters per second'
     v_truth = ncout.createVariable('vtruth',np.float32,('t','level','lat','lon'),zlib=False)
     v_truth.units = 'meters per second'
     thet_truth = ncout.createVariable('thettruth',np.float32,('t','lat','lon'),zlib=False)
     thet_truth.units = 'K'
-    u_sprd = ncout.createVariable('usprd',np.float32,('t','level','lat','lon'),zlib=False)
-    u_sprd.units = 'meters per second'
-    v_sprd = ncout.createVariable('vsprd',np.float32,('t','level','lat','lon'),zlib=False)
-    v_sprd.units = 'meters per second'
-    thet_sprd = ncout.createVariable('thetsprd',np.float32,('t','lat','lon'),zlib=False)
-    thet_sprd.units = 'K'
+    u_sprdb = ncout.createVariable('usprdb',np.float32,('t','level','lat','lon'),zlib=False)
+    u_sprdb.units = 'meters per second'
+    v_sprdb = ncout.createVariable('vsprdb',np.float32,('t','level','lat','lon'),zlib=False)
+    v_sprdb.units = 'meters per second'
+    thet_sprdb = ncout.createVariable('thetsprdb',np.float32,('t','lat','lon'),zlib=False)
+    thet_sprdb.units = 'K'
+    u_sprda = ncout.createVariable('usprda',np.float32,('t','level','lat','lon'),zlib=False)
+    u_sprda.units = 'meters per second'
+    v_sprda = ncout.createVariable('vsprda',np.float32,('t','level','lat','lon'),zlib=False)
+    v_sprda.units = 'meters per second'
+    thet_sprda = ncout.createVariable('thetsprda',np.float32,('t','lat','lon'),zlib=False)
+    thet_sprda.units = 'K'
     uinflation = ncout.createVariable('uinflation',np.float32,('t','level','lat','lon'),zlib=False)
     uinflation.units = 'meters per second'
     vinflation = ncout.createVariable('vinflation',np.float32,('t','level','lat','lon'),zlib=False)
@@ -281,6 +293,14 @@ for ntime in xrange(nassim):
     t2 = time.clock()
     if profile: print 'cpu time for forward operator',t2-t1
 
+    if savedata:
+        u_ensmeanb[nout] = uensmean
+        v_ensmeanb[nout] = vensmean
+        thet_ensmeanb[nout] = thetensmean
+        u_sprdb[nout] = usprd
+        v_sprdb[nout] = vsprd
+        thet_sprdb[nout] = thetsprd
+
     # EnKF update
     t1 = time.clock()
     # create 1d state vector.
@@ -331,12 +351,12 @@ for ntime in xrange(nassim):
     (ntime,theterra,thetsprda,theterrb,thetsprdb,uverr1a,uvsprd1a,uverr1b,uvsprd1b,
      np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
     if savedata:
-        u_ensmean[nout] = uensmean
-        v_ensmean[nout] = vensmean
-        thet_ensmean[nout] = thetensmean
-        u_sprd[nout] = usprd
-        v_sprd[nout] = vsprd
-        thet_sprd[nout] = thetsprd
+        u_ensmeana[nout] = uensmean
+        v_ensmeana[nout] = vensmean
+        thet_ensmeana[nout] = thetensmean
+        u_sprda[nout] = usprd
+        v_sprda[nout] = vsprd
+        thet_sprda[nout] = thetsprd
         u_truth[nout] = utruth[ntime]
         v_truth[nout] = vtruth[ntime]
         thetinflation[nout] = thetinf
