@@ -18,11 +18,12 @@ covinflate = float(sys.argv[2])
 
 profile = False # turn on profiling?
 
-nobs = 500 # number of obs to assimilate
+nobs = 256  # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
-nobsall = 10*nobs
+#nobsall = 10*nobs
+nobsall = nobs
 nanals = 20 # ensemble members
 oberrstdev = 1.0 # ob error in K
 nassim = 1501 # assimilation times to run
@@ -66,7 +67,13 @@ if nobs == 1:
 else:
     oblatsall,oblonsall =\
     fibonacci_pts(nobsall,np.degrees(sp.lats[-1]),np.degrees(sp.lats[0]))
-nobsall = len(oblatsall) # reset nobsall
+
+# reset nobsall
+if nobs == nobsall:
+    nobsall = len(oblatsall)
+    nobs = nobsall
+else:
+    nobsall = len(oblatsall)
 
 print '# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev)
 print '# covlocal_scale=%s km, covinflate=%s' %\
