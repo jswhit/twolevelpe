@@ -184,7 +184,7 @@ def serial_ensrf(xens,hxens,obs,oberrs,covlocal,hcovlocal,covinflate):
         covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
     xprime = xprime*inflation_factor
     xens = xmean + xprime
-    return xens
+    return xens, inflation_factor.squeeze()
 
 def letkf_calcwts(hxens,ominusf,oberrs,covlocal_ob=None):
     """calculate analysis weights with local ensemble transform kalman filter
@@ -240,4 +240,4 @@ def letkf_update(xens,wts,covinflate):
         inflation_factor = np.sqrt(1. + \
         covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
     xprime = xprime*inflation_factor
-    return xmean + xprime - xensb
+    return xmean + xprime - xensb, inflation_factor.squeeze()
