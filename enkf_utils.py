@@ -149,7 +149,7 @@ def gaspcohn(r,gaussian=False):
                    + 4.0 - 2.0 / (3.0 * rr), taper)
     return taper
 
-def serial_ensrf(xens,hxens,obs,oberrs,covlocal,hcovlocal,covinflate1,covinflate2):
+def serial_ensrf(xens,hxens,obs,oberrs,covlocal,hcovlocal,covinflate):
     """serial potter method"""
     nanals, ndim = xens.shape; nobs = len(obs)
     xmean = xens.mean(axis=0); xprime = xens-xmean
@@ -173,16 +173,16 @@ def serial_ensrf(xens,hxens,obs,oberrs,covlocal,hcovlocal,covinflate1,covinflate
         hxprime[:,nob:] = hxprime[:,nob:] - gainfact*kfgain*hxprime_tmp
     # posterior inflation
     asprd = (xprime**2).sum(axis=0)/(nanals-1)
-    if covinflate2 <= 0:
+    if covinflate < 1:
         # relaxation to prior stdev (Whitaker and Hamill)
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-        inflation_factor = 1.+covinflate1*(fsprd-asprd)/fsprd
+        inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
     else:
         # Hodyss and Campbell
         inc = xmean - xmean_b
-        inflation_factor = covinflate1*asprd + \
-        (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
-        inflation_factor = np.sqrt(inflation_factor/asprd)
+        inflation_factor = np.sqrt(1. + \
+        covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
+    xprime = xprime*inflation_factor
     xens = xmean + xprime
     return xens
 
@@ -211,7 +211,7 @@ def letkf_calcwts(hxens,ominusf,oberrs,covlocal_ob=None):
         wts = calcwts(hxprime,Rinv,ominusf)
     return wts
 
-def letkf_update(xens,wts,covinflate1,covinflate2):
+def letkf_update(xens,wts,covinflate):
     """calculate increment (analysis - forecast) to state with LETKF
     using precomputed analysis weights (assuming no vertical localization).
     Relaxation to prior spread (RTPS) inflation also applied."""
@@ -230,15 +230,14 @@ def letkf_update(xens,wts,covinflate1,covinflate2):
     # posterior inflation
     xmean = xens.mean(axis=0); xprime = xens-xmean
     asprd = (xprime**2).sum(axis=0)/(nanals-1)
-    if covinflate2 <= 0:
+    if covinflate < 1:
         # relaxation to prior stdev (Whitaker and Hamill)
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-        inflation_factor = 1.+covinflate1*(fsprd-asprd)/fsprd
+        inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
     else:
         # Hodyss and Campbell
         inc = xmean - xmean_b
-        inflation_factor = covinflate1*asprd + \
-        (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
-        inflation_factor = np.sqrt(inflation_factor/asprd)
+        inflation_factor = np.sqrt(1. + \
+        covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
     xprime = xprime*inflation_factor
     return xmean + xprime - xensb
