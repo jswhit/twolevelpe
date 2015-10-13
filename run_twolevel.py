@@ -8,14 +8,14 @@ nlons = 128; nlats = nlons/2  # number of longitudes/latitudes
 ntrunc = 42
 dt = 2700. # time step in seconds
 
-#nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
-#ntrunc = 32
-#dt = 3600. # time step in seconds
+nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
+ntrunc = 32
+dt = 3600. # time step in seconds
 
 fhout = 12. # output interval (hours)
 
-gridtype = 'regular' # 'regular' or 'gaussian'
-output_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
+gridtype = 'gaussian' # 'regular' or 'gaussian'
+output_file = 'truth_twolevel_t%s_%sh.nc' % (ntrunc,int(fhout))
 
 # create spherical harmonic instance.
 rsphere = 6.37122e6 # earth radius
