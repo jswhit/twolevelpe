@@ -160,8 +160,8 @@ fhassim = obtimes[1]-obtimes[0] # assim interval  (assumed constant)
 nsteps = int(fhassim*3600/models[0].dt) # time steps in assim interval
 print '# fhassim,nsteps = ',fhassim,nsteps
 
-#savedata = None
-savedata = 'enkf_twolevel_test.nc'
+savedata = None
+#savedata = 'enkf_twolevel_test.nc'
 nout = 0
 if savedata is not None:
     ncout = Dataset(savedata,'w',format='NETCDF4_CLASSIC')
@@ -359,6 +359,7 @@ for ntime in xrange(nassim):
         thet_sprda[nout] = thetsprd
         u_truth[nout] = utruth[ntime]
         v_truth[nout] = vtruth[ntime]
+        thet_truth[nout] = thetatruth[ntime]
         thetinflation[nout] = thetinf
         uinflation[nout] = uinf
         vinflation[nout] = vinf
