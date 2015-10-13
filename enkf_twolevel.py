@@ -9,22 +9,12 @@ from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts
 
 if len(sys.argv) == 1:
    msg="""
-python enkf_twolevel.py covlocal_scale covinflate1 covinflate2
+python enkf_twolevel.py covlocal_scale covinflate
    """
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
-# inflation parameters
-# (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
-if len(sys.argv) < 3: #
-    # no inflation factor specified, use Hodyss and Campbell with a=b=1
-    covinflate1 = 1.0; covinflate2 = 1.0
-elif len(sys.argv) == 3:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = 0.0
-else:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = float(sys.argv[3])
+covinflate = float(sys.argv[2])
 
 profile = False # turn on profiling?
 
@@ -34,7 +24,7 @@ nobs = 500 # number of obs to assimilate
 # if nobsall = nobs, a fixed observing network is used.
 nobsall = 10*nobs
 nanals = 20 # ensemble members
-oberrstdev = 0.5 # ob error in L
+oberrstdev = 1.0 # ob error in K
 nassim = 1501 # assimilation times to run
 gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
@@ -42,7 +32,7 @@ gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
 # grid, time step info
 nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
 ntrunc = nlons/3 # spectral truncation (for alias-free computations)
-gridtype = 'regular'
+gridtype = 'gaussian'
 dt = 3600. # time step in seconds
 rsphere = 6.37122e6 # earth radius
 
@@ -79,8 +69,8 @@ else:
 nobsall = len(oblatsall) # reset nobsall
 
 print '# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev)
-print '# covlocal_scale=%s km, covinflate1=%s covinflate2=%s' %\
-(covlocal_scale/1000., covinflate1,covinflate2)
+print '# covlocal_scale=%s km, covinflate=%s' %\
+(covlocal_scale/1000., covinflate)
 thetaobsall = np.empty((nassim,nobsall),np.float)
 # keep truth upper layer winds interpolated to all ob locations for validation.
 uobsall = np.empty((nassim,nobsall),np.float)
@@ -236,7 +226,7 @@ for ntime in xrange(nassim):
                       vens[nanal,0,...],vens[nanal,1,...],thetaens[nanal])).ravel()
     # update state vector.
     xens =\
-    serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp,covinflate1,covinflate2)
+    serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp,covinflate)
     # 1d vector back to 3d arrays.
     for nanal in xrange(nanals):
         xsplit = np.split(xens[nanal],5)
