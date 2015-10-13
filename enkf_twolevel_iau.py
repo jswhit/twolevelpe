@@ -15,17 +15,7 @@ python enkf_twolevel.py covlocal_scale covinflate obshr_interval use_letkf (nsta
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
-# inflation parameters
-# (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
-if len(sys.argv) < 3: #
-    # no inflation factor specified, use Hodyss and Campbell with a=b=1
-    covinflate1 = 1.0; covinflate2 = 1.0
-elif len(sys.argv) == 3:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = 0.0
-else:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = float(sys.argv[3])
+covinflate = float(sys.argv[2])
 # interval to compute increments (in hours) within IAU window.
 #obshr_interval = float(sys.argv[3])
 #use_letkf = bool(int(sys.argv[4]))
@@ -37,11 +27,6 @@ if use_letkf:
     print '# using LETKF...'
 else:
     print '# using serial EnSRF...'
-
-# spinup parameters
-covlocal_scale_spinup = 2000.e3
-covinflate_spinup = 0.8
-ntimes_spinup = 0
 
 nobs = 500 # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
@@ -58,7 +43,7 @@ gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
 # grid, time step info
 nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
 ntrunc = 32 # spectral truncation (for alias-free computations)
-gridtype = 'regular'
+gridtype = 'gaussian'
 dt = 3600. #  time step in seconds
 rsphere = 6.37122e6 # earth radius
 
@@ -94,8 +79,8 @@ else:
 nobsall = len(oblatsall) # reset nobsall
 
 print '# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev)
-print '# covlocal_scale=%s km, covinflate1=%s, covinflate2=%s, obshr_interval=%s' %\
-(covlocal_scale/1000., covinflate1, covinflate2, obshr_interval)
+print '# covlocal_scale=%s km, covinflate=%s obshr_interval=%s' %\
+(covlocal_scale/1000., covinflate, obshr_interval)
 thetaobsall = np.empty((nassim,nobsall),np.float)
 # keep truth upper layer winds interpolated to all ob locations for validation.
 uobsall = np.empty((nassim,nobsall),np.float)
@@ -180,9 +165,7 @@ xens = np.empty((nanals,ndim),np.float) # empty 1d state vector array
 # precompute covariance localization for fixed observation network.
 ndim1 = sp.nlons*sp.nlats
 covlocal1 = np.zeros((nobsall,ndim1),np.float)
-covlocal1_spinup = np.zeros((nobsall,ndim1),np.float)
 hcovlocal = np.zeros((nobsall,nobsall),np.float)
-hcovlocal_spinup = np.zeros((nobsall,nobsall),np.float)
 modellats = np.degrees(sp.lats)
 modellons = np.degrees(sp.lons)
 modellons,modellats = np.meshgrid(modellons,modellats)
@@ -190,19 +173,13 @@ for nob in xrange(nobsall):
     r = sp.rsphere*gcdist(np.radians(oblonsall[nob]),np.radians(oblatsall[nob]),
     np.radians(modellons.ravel()),np.radians(modellats.ravel()))
     taper = gaspcohn(r/covlocal_scale,gaussian=gaussian)
-    taper_spinup = gaspcohn(r/covlocal_scale_spinup,gaussian=gaussian)
     covlocal1[nob,:] = taper
-    covlocal1_spinup[nob,:] = taper_spinup
     r = sp.rsphere*gcdist(np.radians(oblonsall[nob]),np.radians(oblatsall[nob]),
     np.radians(oblonsall),np.radians(oblatsall))
     taper = gaspcohn(r/covlocal_scale,gaussian=gaussian)
-    taper_spinup = gaspcohn(r/covlocal_scale_spinup,gaussian=gaussian)
     hcovlocal[nob,:] = taper
-    hcovlocal_spinup[nob,:] = taper_spinup
 covlocal1 = np.where(covlocal1 < 1.e-13, 1.e-13, covlocal1)
-covlocal1_spinup = np.where(covlocal1_spinup < 1.e-13, 1.e-13, covlocal1_spinup)
 covlocal = np.tile(covlocal1,5)
-covlocal_spinup = np.tile(covlocal1_spinup,5)
 # simple constant IAU weights
 wts_iau = np.ones(nsteps,np.float)/(3600.*fhassim)
 if obshr_interval < 0.:
@@ -236,33 +213,19 @@ for ntime in xrange(nstart,nend):
         thetaobs = thetaobsall[ntime]
         obindx = np.arange(nobs)
         if use_letkf:
-            if ntime < ntimes_spinup:
-                covlocal_tmp = covlocal1_spinup
-            else:
-                covlocal_tmp = covlocal1
+            covlocal_tmp = covlocal1
         else:
-            if ntime < ntimes_spinup:
-                covlocal_tmp = covlocal_spinup
-                hcovlocal_tmp = hcovlocal_spinup
-            else:
-                covlocal_tmp = covlocal
-                hcovlocal_tmp = hcovlocal
+            covlocal_tmp = covlocal
+            hcovlocal_tmp = hcovlocal
     elif nobsall > nobs:
         obindx = np.random.choice(np.arange(nobsall),size=nobs,replace=False)
         oblats = oblatsall[obindx]; oblons = oblonsall[obindx]
         thetaobs = np.ascontiguousarray(thetaobsall[ntime,obindx])
         if use_letkf:
-            if ntime < ntimes_spinup:
-                covlocal_tmp = np.ascontiguousarray(covlocal1_spinup[obindx,:])
-            else:
-                covlocal_tmp = np.ascontiguousarray(covlocal1[obindx,:])
+            covlocal_tmp = np.ascontiguousarray(covlocal1[obindx,:])
         else:
-            if ntime < ntimes_spinup:
-                covlocal_tmp = np.ascontiguousarray(covlocal_spinup[obindx,:])
-                hcovlocal_tmp = np.ascontiguousarray(hcovlocal_spinup[obindx,:][:,obindx])
-            else:
-                covlocal_tmp = np.ascontiguousarray(covlocal[obindx,:])
-                hcovlocal_tmp = np.ascontiguousarray(hcovlocal[obindx,:][:,obindx])
+            covlocal_tmp = np.ascontiguousarray(covlocal[obindx,:])
+            hcovlocal_tmp = np.ascontiguousarray(hcovlocal[obindx,:][:,obindx])
     else:
         raise ValueError('nobsall must be >= nobs')
     if oberrstdev > 0.: # add observation error
@@ -319,12 +282,6 @@ for ntime in xrange(nstart,nend):
     if ntime==nend-1: break
 
     # EnKF update
-    if ntime < ntimes_spinup:
-        covinf1 = covinflate_spinup
-        covinf2 = 0.
-    else:
-        covinf1 = covinflate1
-        covinf2 = covinflate2
     t1 = time.clock()
     if use_letkf:
         wts = letkf_calcwts(hxens,thetaobs-hxensmean,oberrvar,covlocal_ob=covlocal_tmp)
@@ -360,10 +317,10 @@ for ntime in xrange(nstart,nend):
             xens_fg = xens.copy()
             # update state vector.
             if use_letkf:
-                xens = letkf_update(xens,wts,covinf1,covinf2)
+                xens = letkf_update(xens,wts,covinflate)
             else:
                 xens =\
-                serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp,covinf1,covinf2)
+                serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp,covinflate)
             #print (xens-xens_fg).min(),(xens-xens_fg).max()
             # 1d vector back to 3d arrays.
             for nanal in xrange(nanals):
