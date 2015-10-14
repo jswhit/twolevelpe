@@ -53,7 +53,7 @@ sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 spout = sp
 
 models = []
-for nanal in xrange(nanals):
+for nanal in range(nanals):
     models.append(TwoLevel(sp,dt))
 
 # weights for computing global means.
@@ -93,7 +93,7 @@ vtruth = np.empty((nassim,2,nlats,nlons),np.float)
 thetatruth = np.empty((nassim,nlats,nlons),np.float)
 oberrvar = np.empty(nobs,np.float); oberrvar[:] = oberrstdev**2
 obtimes = np.empty((nassim),np.float)
-for n in xrange(nassim):
+for n in range(nassim):
     # flip latitude direction so lats are increasing (needed for interpolation)
     theta = nct.variables['theta'][n,::-1,:]
     obtimes[n] = nct.variables['t'][n]
@@ -134,7 +134,7 @@ for n in indx:
 vrtspec = np.empty((nanals,2,sp.nlm),np.complex)
 divspec = np.empty((nanals,2,sp.nlm),np.complex)
 thetaspec = np.empty((nanals,sp.nlm),np.complex)
-for nanal in xrange(nanals):
+for nanal in range(nanals):
     vrtspec[nanal], divspec[nanal] = sp.getvrtdivspec(uens[nanal],vens[nanal])
     thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
 xens = np.empty((nanals,5*sp.nlons*sp.nlats),np.float) # empty 1d state vector array
@@ -145,7 +145,7 @@ hcovlocal = np.zeros((nobsall,nobsall),np.float)
 modellats = np.degrees(sp.lats)
 modellons = np.degrees(sp.lons)
 modellons,modellats = np.meshgrid(modellons,modellats)
-for nob in xrange(nobsall):
+for nob in range(nobsall):
     r = sp.rsphere*gcdist(np.radians(oblonsall[nob]),np.radians(oblatsall[nob]),
     np.radians(modellons.ravel()),np.radians(modellats.ravel()))
     taper = gaspcohn(r/covlocal_scale,gaussian=gaussian)
@@ -229,10 +229,10 @@ if savedata is not None:
     lons[:] = np.degrees(sp.lons)
 
 # initialize model clock
-for nanal in xrange(nanals):
+for nanal in range(nanals):
     models[nanal].t = obtimes[0]*3600.
 
-for ntime in xrange(nassim):
+for ntime in range(nassim):
 
     # check model clock
     if models[0].t/3600. != obtimes[ntime]:
@@ -243,11 +243,6 @@ for ntime in xrange(nassim):
     t1 = time.clock()
     # ensemble in observation space.
     hxens = np.empty((nanals,nobs),np.float)
-    hxensu = np.empty((nanals,nobsall),np.float)
-    hxensv = np.empty((nanals,nobsall),np.float)
-    hxensus = np.empty((nanals,nobsall),np.float)
-    hxensvs = np.empty((nanals,nobsall),np.float)
-    hxenstheta = np.empty((nanals,nobsall),np.float)
     if nobs == nobsall:
         oblats = oblatsall; oblons = oblonsall
         thetaobs = thetaobsall[ntime]
@@ -263,7 +258,7 @@ for ntime in xrange(nassim):
         raise ValueError('nobsall must be >= nobs')
     if oberrstdev > 0.: # add observation error
         thetaobs += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
-    for nanal in xrange(nanals):
+    for nanal in range(nanals):
         # inverse transform to grid.
         uens[nanal],vens[nanal] = sp.getuv(vrtspec[nanal],divspec[nanal])
         thetaens[nanal] = sp.spectogrd(thetaspec[nanal])
@@ -304,7 +299,7 @@ for ntime in xrange(nassim):
     # EnKF update
     t1 = time.clock()
     # create 1d state vector.
-    for nanal in xrange(nanals):
+    for nanal in range(nanals):
         xens[nanal] = np.concatenate((uens[nanal,0,...],uens[nanal,1,...],\
                       vens[nanal,0,...],vens[nanal,1,...],thetaens[nanal])).ravel()
     xmean_b = xens.mean(axis=0); xprime = xens-xmean_b
@@ -330,7 +325,7 @@ for ntime in xrange(nassim):
     xprime = xprime*inflation_factor
     xens = xmean + xprime
     # 1d vector back to 3d arrays.
-    for nanal in xrange(nanals):
+    for nanal in range(nanals):
         xsplit = np.split(xens[nanal],5)
         uens[nanal,0,...] = xsplit[0].reshape((sp.nlats,sp.nlons))
         uens[nanal,1,...] = xsplit[1].reshape((sp.nlats,sp.nlons))
@@ -369,6 +364,7 @@ for ntime in xrange(nassim):
     print "%s %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,theterra,thetsprda,theterrb,thetsprdb,uverr1a,uvsprd1a,uverr1b,uvsprd1b,
      np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
+
     # write out data.
     if savedata:
         u_ensmeana[nout] = uensmean
@@ -388,8 +384,8 @@ for ntime in xrange(nassim):
 
     # run forecast ensemble to next analysis time
     t1 = time.clock()
-    for nstep in xrange(nsteps):
-        for nanal in xrange(nanals):
+    for nstep in range(nsteps):
+        for nanal in range(nanals):
             vrtspec[nanal],divspec[nanal],thetaspec[nanal] = \
             models[nanal].rk4step(vrtspec[nanal],divspec[nanal],thetaspec[nanal])
     t2 = time.clock()
