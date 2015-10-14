@@ -34,9 +34,9 @@ nobs = 256 # number of obs to assimilate
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
 nobsall = nobs
-nanals = 20 # ensemble members
+nanals = 10 # ensemble members
 oberrstdev = 1.0 # ob error in meters
-nassim = 601 # assimilation times to run
+nassim = 801 # assimilation times to run
 gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
@@ -53,7 +53,7 @@ np.random.seed(42)
 # model nature run to sample initial ensemble and draw additive noise.
 modelclimo_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
 # 'truth' nature run to sample obs
-truth_file = 'truth_twolevel_t42_12h.nc'
+truth_file = 'truth_twolevel_t32_12h.nc'
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)

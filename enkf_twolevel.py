@@ -25,9 +25,9 @@ nobs = 256  # number of obs to assimilate
 # if nobsall = nobs, a fixed observing network is used.
 #nobsall = 10*nobs
 nobsall = nobs
-nanals = 20 # ensemble members
+nanals = 10 # ensemble members
 oberrstdev = 1.0 # ob error in K
-nassim = 601 # assimilation times to run
+nassim = 801 # assimilation times to run
 gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
