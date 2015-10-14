@@ -182,7 +182,7 @@ if savedata is not None:
     ncout.nobs = nobs
     ncout.nobsall = nobsall
     ncout.oberrstdev = oberrstdev
-    atts = ['moistfact','grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp']
+    atts = ['grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp']
     for att in atts:
         ncout.setncattr(att,models[0].__dict__[att])
     lat = ncout.createDimension('lat',sp.nlats)
