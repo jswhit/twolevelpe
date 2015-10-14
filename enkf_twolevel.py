@@ -307,9 +307,28 @@ for ntime in xrange(nassim):
     for nanal in xrange(nanals):
         xens[nanal] = np.concatenate((uens[nanal,0,...],uens[nanal,1,...],\
                       vens[nanal,0,...],vens[nanal,1,...],thetaens[nanal])).ravel()
+    xmean = xens.mean(axis=0); xprime = xens-xmean
+    # background spread.
+    fsprd = (xprime**2).sum(axis=0)/(nanals-1)
     # update state vector.
-    xens, inflation =\
-    serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp,covinflate)
+    xens = serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp)
+    xmean = xens.mean(axis=0); xprime = xens-xmean
+    # analysis spread
+    asprd = (xprime**2).sum(axis=0)/(nanals-1)
+    # posterior inflation
+    if covinflate < 1:
+        # relaxation to prior stdev (Whitaker and Hamill)
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
+    else:
+        # Hodyss and Campbell
+        inc = xmean - xmean_b
+        inflation_factor = np.sqrt(1. + \
+        covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
+        #inflation_factor = np.sqrt(covinflate1 + \
+        #(asprd/fsprd**2)*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1))))
+    xprime = xprime*inflation_factor
+    xens = xmean + xprime
     # 1d vector back to 3d arrays.
     for nanal in xrange(nanals):
         xsplit = np.split(xens[nanal],5)
@@ -320,7 +339,7 @@ for ntime in xrange(nassim):
         thetaens[nanal]   = xsplit[4].reshape((sp.nlats,sp.nlons))
         vrtspec[nanal], divspec[nanal] = sp.getvrtdivspec(uens[nanal],vens[nanal])
         thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
-    infsplit = np.split(inflation,5)
+    infsplit = np.split(inflation_factor,5)
     uinf[0,...] = infsplit[0].reshape((sp.nlats,sp.nlons))
     uinf[1,...] = infsplit[1].reshape((sp.nlats,sp.nlons))
     vinf[0,...] = infsplit[2].reshape((sp.nlats,sp.nlons))
@@ -350,6 +369,7 @@ for ntime in xrange(nassim):
     print "%s %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,theterra,thetsprda,theterrb,thetsprdb,uverr1a,uvsprd1a,uverr1b,uvsprd1b,
      np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
+    # write out data.
     if savedata:
         u_ensmeana[nout] = uensmean
         v_ensmeana[nout] = vensmean
