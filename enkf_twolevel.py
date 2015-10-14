@@ -390,11 +390,12 @@ for ntime in range(nassim):
     uvsprd0a = np.sqrt((uvsprd0*globalmeanwts).sum())
     # print rms wind and temp error & spread (relative to truth for analysis
     # and background), plus innov stats for background.
-    print "%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
+    print "%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,theterra,thetsprda,theterrb,thetsprdb,\
            werra,wsprda,werrb,wsprdb,\
-           uverr1a,uvsprd1a,uverr1b,uvsprd1b,\
-     np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
+           uverr0a,uvsprd0a,uverr0b,uvsprd0b,\
+           uverr1a,uvsprd1a,uverr1b,uvsprd1b,
+           np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
 
     # write out data.
     if savedata:
