@@ -64,9 +64,7 @@ for nanal in range(nanals):
     models.append(TwoLevel(sp,dt))
 
 # weights for computing global means.
-wts = np.cos(models[0].lats)
-globalmeanwts = np.ones((nlats,nlons))*wts[np.newaxis,:]
-globalmeanwts = globalmeanwts/globalmeanwts.sum()
+globalmeanwts = models[0].globalmeanwts
 
 # read nature run, create obs.
 nct = Dataset(truth_file)
