@@ -18,6 +18,7 @@ covlocal_scale = float(sys.argv[1])
 # covariance inflation parameter.
 covinflate = float(sys.argv[2])
 # interval to compute increments (in hours) within IAU window.
+# 0 means 3DIAU, < 0 means no IAU.
 obshr_interval = float(sys.argv[3])
 #use_letkf = bool(int(sys.argv[4]))
 use_letkf = False
