@@ -307,7 +307,7 @@ for ntime in xrange(nassim):
     for nanal in xrange(nanals):
         xens[nanal] = np.concatenate((uens[nanal,0,...],uens[nanal,1,...],\
                       vens[nanal,0,...],vens[nanal,1,...],thetaens[nanal])).ravel()
-    xmean = xens.mean(axis=0); xprime = xens-xmean
+    xmean_b = xens.mean(axis=0); xprime = xens-xmean_b
     # background spread.
     fsprd = (xprime**2).sum(axis=0)/(nanals-1)
     # update state vector.
