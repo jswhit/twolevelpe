@@ -1,4 +1,4 @@
-from pyspharm import Spharmt
+from pyspharm import Spharmt, regrid, regriduv
 from twolevel import TwoLevel
 import numpy as np
 from netCDF4 import Dataset
@@ -18,9 +18,8 @@ covlocal_scale = float(sys.argv[1])
 # covariance inflation parameter.
 covinflate = float(sys.argv[2])
 # interval to compute increments (in hours) within IAU window.
-#obshr_interval = float(sys.argv[3])
+obshr_interval = float(sys.argv[3])
 #use_letkf = bool(int(sys.argv[4]))
-obshr_interval = 6 # 0 for no IAU
 use_letkf = False
 
 profile = bool(os.getenv('PROFILE')) # turn on profiling?
@@ -53,7 +52,7 @@ np.random.seed(42)
 # model nature run to sample initial ensemble and draw additive noise.
 modelclimo_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
 # 'truth' nature run to sample obs
-truth_file = 'truth_twolevel_t32_12h.nc'
+truth_file = 'truth_twolevel_t42_12h.nc'
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
