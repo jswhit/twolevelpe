@@ -90,22 +90,28 @@ print '# covlocal_scale=%s km, covinflate=%s' %\
 thetaobsall = np.empty((nassim,nobsall),np.float)
 utruth = np.empty((nassim,2,nlats,nlons),np.float)
 vtruth = np.empty((nassim,2,nlats,nlons),np.float)
+wtruth = np.empty((nassim,nlats,nlons),np.float)
 thetatruth = np.empty((nassim,nlats,nlons),np.float)
 oberrvar = np.empty(nobs,np.float); oberrvar[:] = oberrstdev**2
 obtimes = np.empty((nassim),np.float)
 for n in range(nassim):
     # flip latitude direction so lats are increasing (needed for interpolation)
-    theta = nct.variables['theta'][n,::-1,:]
+    vrtspec_tmp,divspec_tmp =\
+    spin.getvrtdivspec(nct.variables['u'][n],nct.variables['v'][n])
+    w = models[0].dp*spin.spectogrd(divspec_tmp[1]-divspec_tmp[0])
     obtimes[n] = nct.variables['t'][n]
-    thetaobsall[n] = bilintrp(theta,lons,lats[::-1],oblonsall,oblatsall)
+    thetaobsall[n] =\
+    bilintrp(nct.variables['theta'][n,::-1,:],lons,lats[::-1],oblonsall,oblatsall)
     if samegrid:
        utruth[n] = nct.variables['u'][n]
        vtruth[n] = nct.variables['v'][n]
        thetatruth[n] = nct.variables['theta'][n]
+       wtruth[n] = w
     else:
        utruth[n], vtruth[n] =\
        regriduv(spin,spout,nct.variables['u'][n],nct.variables['v'][n])
        thetatruth[n] = regrid(spin,spout,nct.variables['theta'][n],levs=1)
+       wtruth[n] = regrid(spin,spout,w,levs=1)
 nct.close()
 
 # create initial ensemble by randomly sampling climatology
@@ -114,6 +120,7 @@ ncm = Dataset(modelclimo_file)
 indx = np.random.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
 #indx[:] = 0 # for testing forward operator
 thetaens = np.empty((nanals,sp.nlats,sp.nlons),np.float)
+wens = np.empty((nanals,sp.nlats,sp.nlons),np.float)
 uens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float)
 vens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float)
 thetinf = np.empty((sp.nlats,sp.nlons),np.float)
@@ -190,30 +197,40 @@ if savedata is not None:
     v_ensmeanb.units = 'meters per second'
     thet_ensmeanb = ncout.createVariable('thetensmeanb',np.float32,('t','lat','lon'),zlib=False)
     thet_ensmeanb.units = 'K'
+    w_ensmeanb = ncout.createVariable('wensmeanb',np.float32,('t','lat','lon'),zlib=False)
+    w_ensmeanb.units = 'Pa per second'
     u_ensmeana = ncout.createVariable('uensmeana',np.float32,('t','level','lat','lon'),zlib=False)
     u_ensmeana.units = 'meters per second'
     v_ensmeana = ncout.createVariable('vensmeana',np.float32,('t','level','lat','lon'),zlib=False)
     v_ensmeana.units = 'meters per second'
     thet_ensmeana = ncout.createVariable('thetensmeana',np.float32,('t','lat','lon'),zlib=False)
     thet_ensmeana.units = 'K'
+    w_ensmeana = ncout.createVariable('wensmeana',np.float32,('t','lat','lon'),zlib=False)
+    w_ensmeana.units = 'Pa per second'
     u_truth = ncout.createVariable('utruth',np.float32,('t','level','lat','lon'),zlib=False)
     u_truth.units = 'meters per second'
     v_truth = ncout.createVariable('vtruth',np.float32,('t','level','lat','lon'),zlib=False)
     v_truth.units = 'meters per second'
     thet_truth = ncout.createVariable('thettruth',np.float32,('t','lat','lon'),zlib=False)
     thet_truth.units = 'K'
+    w_truth = ncout.createVariable('wtruth',np.float32,('t','lat','lon'),zlib=False)
+    w_truth.units = 'Pa per second'
     u_sprdb = ncout.createVariable('usprdb',np.float32,('t','level','lat','lon'),zlib=False)
     u_sprdb.units = 'meters per second'
     v_sprdb = ncout.createVariable('vsprdb',np.float32,('t','level','lat','lon'),zlib=False)
     v_sprdb.units = 'meters per second'
     thet_sprdb = ncout.createVariable('thetsprdb',np.float32,('t','lat','lon'),zlib=False)
     thet_sprdb.units = 'K'
+    w_sprdb = ncout.createVariable('wsprdb',np.float32,('t','lat','lon'),zlib=False)
+    w_sprdb.units = 'Pa per second'
     u_sprda = ncout.createVariable('usprda',np.float32,('t','level','lat','lon'),zlib=False)
     u_sprda.units = 'meters per second'
     v_sprda = ncout.createVariable('vsprda',np.float32,('t','level','lat','lon'),zlib=False)
     v_sprda.units = 'meters per second'
     thet_sprda = ncout.createVariable('thetsprda',np.float32,('t','lat','lon'),zlib=False)
     thet_sprda.units = 'K'
+    w_sprda = ncout.createVariable('wsprda',np.float32,('t','lat','lon'),zlib=False)
+    w_sprda.units = 'Pa per second'
     uinflation = ncout.createVariable('uinflation',np.float32,('t','level','lat','lon'),zlib=False)
     uinflation.units = 'meters per second'
     vinflation = ncout.createVariable('vinflation',np.float32,('t','level','lat','lon'),zlib=False)
@@ -262,6 +279,8 @@ for ntime in range(nassim):
         # inverse transform to grid.
         uens[nanal],vens[nanal] = sp.getuv(vrtspec[nanal],divspec[nanal])
         thetaens[nanal] = sp.spectogrd(thetaspec[nanal])
+        wens[nanal] =\
+        models[nanal].dp*sp.spectogrd(divspec[nanal,1,...]-divspec[nanal,0,...])
         # forward operator calculation.
         theta = thetaens[nanal,::-1,:]
         hxens[nanal] = bilintrp(theta,np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
@@ -271,10 +290,15 @@ for ntime in range(nassim):
     obsprd = (((hxens-hxensmean)**2).sum(axis=0)/(nanals-1)).mean()
     uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
     thetensmean = thetaens.mean(axis=0)
+    wensmean = wens.mean(axis=0)
     theterr = (thetatruth[ntime]-thetensmean)**2
     theterrb = np.sqrt((theterr*globalmeanwts).sum())
+    werr = (wtruth[ntime]-wensmean)**2
+    werrb = np.sqrt((werr*globalmeanwts).sum())
     thetsprd = ((thetaens-thetensmean)**2).sum(axis=0)/(nanals-1)
     thetsprdb = np.sqrt((thetsprd*globalmeanwts).sum())
+    wsprd = ((wens-wensmean)**2).sum(axis=0)/(nanals-1)
+    wsprdb = np.sqrt((wsprd*globalmeanwts).sum())
     uverr1 = 0.5*((utruth[ntime,1,:,:]-uensmean[1])**2+(vtruth[ntime,1,:,:]-vensmean[1])**2)
     uverr1b = np.sqrt((uverr1*globalmeanwts).sum())
     usprd = ((uens-uensmean)**2).sum(axis=0)/(nanals-1)
@@ -292,9 +316,11 @@ for ntime in range(nassim):
         u_ensmeanb[nout] = uensmean
         v_ensmeanb[nout] = vensmean
         thet_ensmeanb[nout] = thetensmean
+        w_ensmeanb[nout] = wensmean
         u_sprdb[nout] = usprd
         v_sprdb[nout] = vsprd
         thet_sprdb[nout] = thetsprd
+        w_sprdb[nout] = wsprd
 
     # EnKF update
     t1 = time.clock()
@@ -320,8 +346,6 @@ for ntime in range(nassim):
         inc = xmean - xmean_b
         inflation_factor = np.sqrt(1. + \
         covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
-        #inflation_factor = np.sqrt(covinflate1 + \
-        #(asprd/fsprd**2)*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1))))
     xprime = xprime*inflation_factor
     xens = xmean + xprime
     # 1d vector back to 3d arrays.
@@ -334,6 +358,8 @@ for ntime in range(nassim):
         thetaens[nanal]   = xsplit[4].reshape((sp.nlats,sp.nlons))
         vrtspec[nanal], divspec[nanal] = sp.getvrtdivspec(uens[nanal],vens[nanal])
         thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
+        wens[nanal] =\
+        models[nanal].dp*sp.spectogrd(divspec[nanal,1,...]-divspec[nanal,0,...])
     infsplit = np.split(inflation_factor,5)
     uinf[0,...] = infsplit[0].reshape((sp.nlats,sp.nlons))
     uinf[1,...] = infsplit[1].reshape((sp.nlats,sp.nlons))
@@ -345,10 +371,15 @@ for ntime in range(nassim):
 
     uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
     thetensmean = thetaens.mean(axis=0)
+    wensmean = wens.mean(axis=0)
     theterr = (thetatruth[ntime]-thetensmean)**2
     theterra = np.sqrt((theterr*globalmeanwts).sum())
+    werr = (wtruth[ntime]-wensmean)**2
+    werra = np.sqrt((werr*globalmeanwts).sum())
     thetsprd = ((thetaens-thetensmean)**2).sum(axis=0)/(nanals-1)
     thetsprda = np.sqrt((thetsprd*globalmeanwts).sum())
+    wsprd = ((wens-wensmean)**2).sum(axis=0)/(nanals-1)
+    wsprda = np.sqrt((wsprd*globalmeanwts).sum())
     uverr1 = 0.5*((utruth[ntime,1,:,:]-uensmean[1])**2+(vtruth[ntime,1,:,:]-vensmean[1])**2)
     uverr1a = np.sqrt((uverr1*globalmeanwts).sum())
     usprd = ((uens-uensmean)**2).sum(axis=0)/(nanals-1)
@@ -361,8 +392,10 @@ for ntime in range(nassim):
     uvsprd0a = np.sqrt((uvsprd0*globalmeanwts).sum())
     # print rms wind and temp error & spread (relative to truth for analysis
     # and background), plus innov stats for background.
-    print "%s %g %g %g %g %g %g %g %g %g %g %g" %\
-    (ntime,theterra,thetsprda,theterrb,thetsprdb,uverr1a,uvsprd1a,uverr1b,uvsprd1b,
+    print "%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
+    (ntime,theterra,thetsprda,theterrb,thetsprdb,\
+           werra,wsprda,werrb,wsprdb,\
+           uverr1a,uvsprd1a,uverr1b,uvsprd1b,\
      np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
 
     # write out data.
@@ -370,12 +403,15 @@ for ntime in range(nassim):
         u_ensmeana[nout] = uensmean
         v_ensmeana[nout] = vensmean
         thet_ensmeana[nout] = thetensmean
+        w_ensmeana[nout] = wensmean
         u_sprda[nout] = usprd
         v_sprda[nout] = vsprd
         thet_sprda[nout] = thetsprd
+        w_sprda[nout] = wsprd
         u_truth[nout] = utruth[ntime]
         v_truth[nout] = vtruth[ntime]
         thet_truth[nout] = thetatruth[ntime]
+        w_truth[nout] = wtruth[ntime]
         thetinflation[nout] = thetinf
         uinflation[nout] = uinf
         vinflation[nout] = vinf

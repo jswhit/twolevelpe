@@ -15,6 +15,7 @@ python enkf_twolevel.py covlocal_scale covinflate obshr_interval use_letkf (nsta
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
+# covariance inflation parameter.
 covinflate = float(sys.argv[2])
 # interval to compute increments (in hours) within IAU window.
 #obshr_interval = float(sys.argv[3])
@@ -28,15 +29,14 @@ if use_letkf:
 else:
     print '# using serial EnSRF...'
 
-nobs = 500 # number of obs to assimilate
+nobs = 256 # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
 nobsall = nobs
 nanals = 20 # ensemble members
 oberrstdev = 1.0 # ob error in meters
-nassim = 1501 # assimilation times to run
-nassim_run = 1501
+nassim = 601 # assimilation times to run
 gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
@@ -57,16 +57,23 @@ truth_file = 'truth_twolevel_t32_12h.nc'
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
+spout = sp
 
 models = []
-for nanal in xrange(nanals):
+for nanal in range(nanals):
     models.append(TwoLevel(sp,dt))
+
+# weights for computing global means.
+wts = np.cos(models[0].lats)
+globalmeanwts = np.ones((nlats,nlons))*wts[np.newaxis,:]
+globalmeanwts = globalmeanwts/globalmeanwts.sum()
 
 # read nature run, create obs.
 nct = Dataset(truth_file)
 lats = nct.variables['lat'][:]
 lons = nct.variables['lon'][:]
-spt = Spharmt(len(lons),len(lats),ntrunc,rsphere,gridtype=gridtype)
+spin = Spharmt(len(lons),len(lats),int(nct.ntrunc),rsphere,gridtype=gridtype)
+samegrid = spin.nlons == spout.nlons and spin.nlats == spout.nlats
 # find fibonacci points between latmin and latmax
 if nobs == 1:
     nobsall = 1
@@ -88,35 +95,39 @@ print '# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsal
 print '# covlocal_scale=%s km, covinflate=%s obshr_interval=%s' %\
 (covlocal_scale/1000., covinflate, obshr_interval)
 thetaobsall = np.empty((nassim,nobsall),np.float)
-# keep truth upper layer winds interpolated to all ob locations for validation.
-uobsall = np.empty((nassim,nobsall),np.float)
-vobsall = np.empty((nassim,nobsall),np.float)
-wobsall = np.empty((nassim,nobsall),np.float)
-usobsall = np.empty((nassim,nobsall),np.float)
-vsobsall = np.empty((nassim,nobsall),np.float)
+utruth = np.empty((nassim,2,nlats,nlons),np.float)
+vtruth = np.empty((nassim,2,nlats,nlons),np.float)
+wtruth = np.empty((nassim,nlats,nlons),np.float)
+thetatruth = np.empty((nassim,nlats,nlons),np.float)
 oberrvar = np.empty(nobs,np.float); oberrvar[:] = oberrstdev**2
 obtimes = np.empty((nassim),np.float)
-for n in xrange(nassim):
+for n in range(nassim):
     # flip latitude direction so lats are increasing (needed for interpolation)
     theta = nct.variables['theta'][n,::-1,:]
     vrtspec_tmp,divspec_tmp =\
-    spt.getvrtdivspec(nct.variables['u'][n,...],nct.variables['v'][n,...])
-    w = models[0].dp*spt.spectogrd(divspec_tmp[1]-divspec_tmp[0])[::-1]
+    spin.getvrtdivspec(nct.variables['u'][n,...],nct.variables['v'][n,...])
+    w = models[0].dp*spin.spectogrd(divspec_tmp[1]-divspec_tmp[0])
     obtimes[n] = nct.variables['t'][n]
     thetaobsall[n] = bilintrp(theta,lons,lats[::-1],oblonsall,oblatsall)
-    wobsall[n] = bilintrp(w,lons,lats[::-1],oblonsall,oblatsall)
-    uobsall[n] = bilintrp(nct.variables['u'][n,1,::-1,:],lons,lats[::-1],oblonsall,oblatsall)
-    vobsall[n] = bilintrp(nct.variables['v'][n,1,::-1,:],lons,lats[::-1],oblonsall,oblatsall)
-    usobsall[n] = bilintrp(nct.variables['u'][n,0,::-1,:],lons,lats[::-1],oblonsall,oblatsall)
-    vsobsall[n] = bilintrp(nct.variables['v'][n,0,::-1,:],lons,lats[::-1],oblonsall,oblatsall)
+    if samegrid:
+       utruth[n] = nct.variables['u'][n]
+       vtruth[n] = nct.variables['v'][n]
+       wtruth[n] = w
+       thetatruth[n] = nct.variables['theta'][n]
+    else:
+       utruth[n], vtruth[n] =\
+       regriduv(spin,spout,nct.variables['u'][n],nct.variables['v'][n])
+       thetatruth[n] = regrid(spin,spout,nct.variables['theta'][n],levs=1)
+       wtruth[n] = regrid(spin,spout,w,levs=1)
 nct.close()
 
 # create initial ensemble by randomly sampling climatology
 # of forecast model.
 ncm = Dataset(modelclimo_file)
-thetag = np.empty((sp.nlats,sp.nlons),np.float)
-ug = np.empty((2,sp.nlats,sp.nlons),np.float)
-vg = np.empty((2,sp.nlats,sp.nlons),np.float)
+thetaens = np.empty((nanals,sp.nlats,sp.nlons),np.float)
+wens = np.empty((nanals,sp.nlats,sp.nlons),np.float)
+uens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float)
+vens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float)
 theta_modelclim = ncm.variables['theta']
 u_modelclim = ncm.variables['u']
 v_modelclim = ncm.variables['v']
@@ -140,28 +151,18 @@ thetaspec_inc1 = np.empty((nsteps_iau+1,nanals,sp.nlm),np.complex)
 indx = np.random.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
 print '# fhassim,nsteps,nsteps_iau = ',fhassim,nsteps,nsteps_iau
 
-if len(sys.argv) > 5:
-    nstart = int(sys.argv[5])
-    nend = min(nassim, nstart + nassim_run)
-    print '# restarting from saved ensemble at assim step %s' % nstart
-    vrtspec_fcst = cPickle.load(open('vrtspec_fcst.pkl',mode='rb'))
-    divspec_fcst = cPickle.load(open('divspec_fcst.pkl',mode='rb'))
-    thetaspec_fcst = cPickle.load(open('thetaspec_fcst.pkl',mode='rb'))
-else:
-    nstart = 0
-    nend = nassim_run
-    nanal=0
-    for n in indx:
-        thetag = theta_modelclim[n]
-        ug = u_modelclim[n]
-        vg = v_modelclim[n]
-        vrtspec_fcst[0,nanal,...], divspec_fcst[0,nanal,...] = \
-        sp.getvrtdivspec(ug,vg)
-        thetaspec_fcst[0,nanal,...] = sp.grdtospec(thetag)
-        for nstep in xrange(nsteps):
-            vrtspec_fcst[nstep+1,nanal,...],divspec_fcst[nstep+1,nanal,...],thetaspec_fcst[nstep+1,nanal,...] = \
-            models[nanal].rk4step(vrtspec_fcst[nstep,nanal,...],divspec_fcst[nstep,nanal,...],thetaspec_fcst[nstep,nanal,...])
-        nanal += 1
+nanal=0
+for n in indx:
+    thetag = theta_modelclim[n]
+    ug = u_modelclim[n]
+    vg = v_modelclim[n]
+    vrtspec_fcst[0,nanal,...], divspec_fcst[0,nanal,...] = \
+    sp.getvrtdivspec(ug,vg)
+    thetaspec_fcst[0,nanal,...] = sp.grdtospec(thetag)
+    for nstep in range(nsteps):
+        vrtspec_fcst[nstep+1,nanal,...],divspec_fcst[nstep+1,nanal,...],thetaspec_fcst[nstep+1,nanal,...] = \
+        models[nanal].rk4step(vrtspec_fcst[nstep,nanal,...],divspec_fcst[nstep,nanal,...],thetaspec_fcst[nstep,nanal,...])
+    nanal += 1
 ncm.close()
 
 nvars = 5
@@ -175,7 +176,7 @@ hcovlocal = np.zeros((nobsall,nobsall),np.float)
 modellats = np.degrees(sp.lats)
 modellons = np.degrees(sp.lons)
 modellons,modellats = np.meshgrid(modellons,modellats)
-for nob in xrange(nobsall):
+for nob in range(nobsall):
     r = sp.rsphere*gcdist(np.radians(oblonsall[nob]),np.radians(oblatsall[nob]),
     np.radians(modellons.ravel()),np.radians(modellats.ravel()))
     taper = gaspcohn(r/covlocal_scale,gaussian=gaussian)
@@ -194,26 +195,12 @@ if obshr_interval < 0.:
     wts_iau[:] = 0.
     wts_iau[nstep/2]=1./dt
 
-if nstart > 0:
-    # make sure random sequence is the same for a restart.
-    for ntime in xrange(0,nstart):
-        if nobsall > nobs:
-            obindx = np.random.choice(np.arange(nobsall),size=nobs,replace=False)
-        if oberrstdev > 0.: # add observation error
-            oberrs = np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
-
-for ntime in xrange(nstart,nend):
+for ntime in range(nassim):
 
     # compute forward operator.
     t1 = time.clock()
     # ensemble in observation space.
     hxens = np.empty((nanals,nobs),np.float)
-    hxensu = np.empty((nanals,nobsall),np.float)
-    hxensv = np.empty((nanals,nobsall),np.float)
-    hxensw = np.empty((nanals,nobsall),np.float)
-    hxensus = np.empty((nanals,nobsall),np.float)
-    hxensvs = np.empty((nanals,nobsall),np.float)
-    hxenstheta = np.empty((nanals,nobsall),np.float)
     if nobs == nobsall:
         oblats = oblatsall; oblons = oblonsall
         thetaobs = thetaobsall[ntime]
@@ -236,63 +223,54 @@ for ntime in xrange(nstart,nend):
         raise ValueError('nobsall must be >= nobs')
     if oberrstdev > 0.: # add observation error
         thetaobs += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
-    for nanal in xrange(nanals):
+    for nanal in range(nanals):
         # inverse transform to grid at obs time (center of IAU window).
-        ug,vg = sp.getuv(vrtspec_fcst[nsteps/2,nanal,...],divspec_fcst[nsteps/2,nanal,...])
-        thetag = sp.spectogrd(thetaspec_fcst[nsteps/2,nanal,...])
-        wg = models[nanal].dp*sp.spectogrd(divspec_fcst[nsteps/2,nanal,1,:]-divspec_fcst[nsteps/2,nanal,0,:])
-        # forward operator calculation.
-        hxens[nanal] = bilintrp(thetag[::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
-        hxensu[nanal] =\
-        bilintrp(ug[1,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblonsall,oblatsall)
-        hxensv[nanal] =\
-        bilintrp(vg[1,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblonsall,oblatsall)
-        hxensw[nanal] =\
-        bilintrp(wg[::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblonsall,oblatsall)
-        hxensus[nanal] =\
-        bilintrp(ug[0,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblonsall,oblatsall)
-        hxensvs[nanal] =\
-        bilintrp(vg[0,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblonsall,oblatsall)
-        hxenstheta[nanal] =\
-                bilintrp(thetag[::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblonsall,oblatsall)
+        uens[nanal],vens[nanal] = sp.getuv(vrtspec_fcst[nsteps/2,nanal,...],divspec_fcst[nsteps/2,nanal,...])
+        thetaens[nanal] = sp.spectogrd(thetaspec_fcst[nsteps/2,nanal,...])
+        wens[nanal] = models[nanal].dp*sp.spectogrd(divspec_fcst[nsteps/2,nanal,1,:]-divspec_fcst[nsteps/2,nanal,0,:])
+        # forward operator calculation (obs all at center of assim window).
+        hxens[nanal] = bilintrp(thetaens[nanal,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
     hxensmean = hxens.mean(axis=0)
     obfits = ((thetaobs-hxensmean)**2).sum(axis=0)/(nobs-1)
     obbias = (thetaobs-hxensmean).mean(axis=0)
     obsprd = (((hxens-hxensmean)**2).sum(axis=0)/(nanals-1)).mean()
-    hxensmeanu = hxensu.mean(axis=0)
-    hxensmeanv = hxensv.mean(axis=0)
-    hxensmeanw = hxensw.mean(axis=0)
-    hxensmeanus = hxensus.mean(axis=0)
-    hxensmeanvs = hxensvs.mean(axis=0)
-    hxensmeantheta = hxenstheta.mean(axis=0)
-    obfitsuv =\
-    ((uobsall[ntime]-hxensmeanu)**2+(vobsall[ntime]-hxensmeanv)**2).sum(axis=0)/(nobsall-1)
-    obsprduv = (((hxensu-hxensmeanu)**2+(hxensv-hxensmeanv)**2).sum(axis=0)/(nanals-1)).mean()
-    obfitsuvs =\
-    ((usobsall[ntime]-hxensmeanus)**2+(vsobsall[ntime]-hxensmeanvs)**2).sum(axis=0)/(nobsall-1)
-    obsprduvs = (((hxensus-hxensmeanus)**2+(hxensvs-hxensmeanvs)**2).sum(axis=0)/(nanals-1)).mean()
-    obfitstheta =\
-    ((thetaobsall[ntime]-hxensmeantheta)**2).sum(axis=0)/(nobsall-1)
-    obfitsw =\
-    ((wobsall[ntime]-hxensmeanw)**2).sum(axis=0)/(nobsall-1)
-    obsprdtheta = (((hxenstheta-hxensmeantheta)**2).sum(axis=0)/(nanals-1)).mean()
-    obsprdw = (((hxensw-hxensmeanw)**2).sum(axis=0)/(nanals-1)).mean()
+    uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
+    thetensmean = thetaens.mean(axis=0)
+    wensmean = wens.mean(axis=0)
+    theterr = (thetatruth[ntime]-thetensmean)**2
+    theterr = np.sqrt((theterr*globalmeanwts).sum())
+    werr = (wtruth[ntime]-wensmean)**2
+    werr = np.sqrt((werr*globalmeanwts).sum())
+    thetsprd = ((thetaens-thetensmean)**2).sum(axis=0)/(nanals-1)
+    thetsprd = np.sqrt((thetsprd*globalmeanwts).sum())
+    wsprd = ((wens-wensmean)**2).sum(axis=0)/(nanals-1)
+    wsprd = np.sqrt((wsprd*globalmeanwts).sum())
+    uverr1 = 0.5*((utruth[ntime,1,:,:]-uensmean[1])**2+(vtruth[ntime,1,:,:]-vensmean[1])**2)
+    uverr1 = np.sqrt((uverr1*globalmeanwts).sum())
+    usprd = ((uens-uensmean)**2).sum(axis=0)/(nanals-1)
+    vsprd = ((vens-vensmean)**2).sum(axis=0)/(nanals-1)
+    uvsprd1 = 0.5*(usprd[1]+vsprd[1])
+    uvsprd1 = np.sqrt((uvsprd1*globalmeanwts).sum())
+    uverr0 = 0.5*((utruth[ntime,0,:,:]-uensmean[0])**2+(vtruth[ntime,0,:,:]-vensmean[0])**2)
+    uverr0 = np.sqrt((uverr0*globalmeanwts).sum())
+    uvsprd0 = 0.5*(usprd[0]+vsprd[0])
+    uvsprd0 = np.sqrt((uvsprd0*globalmeanwts).sum())
+    # print rms wind, w and temp error & spread plus
+    # plus innov stats for background only (at center of window).
+    print "%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    (ntime,theterr,thetsprd,werr,wsprd,uverr0,uvsprd0,uverr1,uvsprd1,\
+           np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
+    if ntime==nassim-1: break
+
     t2 = time.clock()
     if profile: print 'cpu time for forward operator',t2-t1
-
-    # print rms wind and temp errors (relative to truth) and spread at all ob locations.
-    print "%s %g %g %g %g %g %g %g %g %g %g %g" %\
-    (ntime,np.sqrt(obfitsuv),np.sqrt(obsprduv),np.sqrt(obfitsuvs),np.sqrt(obsprduvs),\
-     np.sqrt(obfitstheta),np.sqrt(obsprdtheta),np.sqrt(obfitsw),np.sqrt(obsprdw),\
-     np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
-    if ntime==nend-1: break
 
     # EnKF update
     t1 = time.clock()
     if use_letkf:
         wts = letkf_calcwts(hxens,thetaobs-hxensmean,oberrvar,covlocal_ob=covlocal_tmp)
     nstep_iau = 0
-    for nstep in xrange(nsteps+1):
+    for nstep in range(nsteps+1):
         if nsteps_periau != 0:
             # interpolated IAU
             calc_inc = nstep % nsteps_periau == 0
@@ -301,7 +279,7 @@ for ntime in xrange(nstart,nend):
             calc_inc = nstep == nsteps/2
         if calc_inc:
             #print nstep,nstep_iau
-            for nanal in xrange(nanals):
+            for nanal in range(nanals):
                 # inverse transform to grid.
                 ug,vg = sp.getuv(vrtspec_fcst[nstep,nanal,...],divspec_fcst[nstep,nanal,...])
                 thetag = sp.spectogrd(thetaspec_fcst[nstep,nanal,...])
@@ -310,7 +288,7 @@ for ntime in xrange(nstart,nend):
                     uens1 = ug.reshape((2,ndim1))
                     vens1 = vg.reshape((2,ndim1))
                     thetaens1 = thetag.reshape((ndim1,))
-                    for n in xrange(ndim1):
+                    for n in range(ndim1):
                         xens[nanal,nvars*n] = uens1[0,n]
                         xens[nanal,nvars*n+1] = uens1[1,n]
                         xens[nanal,nvars*n+2] = vens1[0,n]
@@ -320,18 +298,38 @@ for ntime in xrange(nstart,nend):
                 else:
                     xens[nanal] = np.concatenate((ug[0,...],ug[1,...],\
                                   vg[0,...],vg[1,...],thetag)).ravel()
-            xens_fg = xens.copy()
+            xens_b = xens.copy()
+            xmean_b = xens_b.mean(axis=0); xprime_b = xens_b-xmean_b
+            # background spread.
+            fsprd = (xprime_b**2).sum(axis=0)/(nanals-1)
             # update state vector.
             if use_letkf:
-                xens = letkf_update(xens,wts,covinflate)
+                xens = letkf_update(xens,wts)
             else:
                 xens =\
-                serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp,covinflate)
-            #print (xens-xens_fg).min(),(xens-xens_fg).max()
+                serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp)
+            xmean = xens.mean(axis=0); xprime = xens-xmean
+            # analysis spread
+            asprd = (xprime**2).sum(axis=0)/(nanals-1)
+            # posterior inflation
+            if covinflate < 1:
+                # relaxation to prior stdev (Whitaker and Hamill)
+                asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+                inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
+            else:
+                # Hodyss and Campbell
+                inc = xmean - xmean_b
+                inflation_factor = np.sqrt(1. + \
+                covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
+                #inflation_factor = np.sqrt(covinflate1 + \
+                #(asprd/fsprd**2)*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1))))
+            xprime = xprime*inflation_factor
+            xens = xmean + xprime
+            #print (xens-xens_b).min(),(xens-xens_b).max()
             # 1d vector back to 3d arrays.
-            for nanal in xrange(nanals):
+            for nanal in range(nanals):
                 if use_letkf:
-                    for n in xrange(ndim1):
+                    for n in range(ndim1):
                         uens1[0,n] = xens[nanal,nvars*n]
                         uens1[1,n] = xens[nanal,nvars*n+1]
                         vens1[0,n] = xens[nanal,nvars*n+2]
@@ -342,7 +340,7 @@ for ntime in xrange(nstart,nend):
                     vg = vens1.reshape((2,sp.nlats,sp.nlons))
                     thetag = thetaens1.reshape((sp.nlats,sp.nlons,))
                 else:
-                    xsplit = np.split(xens[nanal]-xens_fg[nanal],5)
+                    xsplit = np.split(xens[nanal]-xens_b[nanal],5)
                     ug[0,...] = xsplit[0].reshape((sp.nlats,sp.nlons))
                     ug[1,...] = xsplit[1].reshape((sp.nlats,sp.nlons))
                     vg[0,...] = xsplit[2].reshape((sp.nlats,sp.nlons))
@@ -363,14 +361,14 @@ for ntime in xrange(nstart,nend):
 
     # linearly interpolate increments to every time in IAU window.
     if nsteps_iau == 0:
-        for n in xrange(nsteps+1):
+        for n in range(nsteps+1):
             vrtspec_inc[n] = vrtspec_inc1[0]
             divspec_inc[n] = divspec_inc1[0]
             thetaspec_inc[n] = thetaspec_inc1[0]
     else:
         nstep = 0
-        for nstep_iau in xrange(nsteps_iau):
-            for nn in xrange(nsteps/(nsteps_iau)):
+        for nstep_iau in range(nsteps_iau):
+            for nn in range(nsteps/(nsteps_iau)):
                 itime  = nstep_iau + float(nn*nsteps_iau)/float(nsteps)
                 itimel = int(nstep_iau)
                 alpha = itime - float(itimel)
@@ -382,7 +380,7 @@ for ntime in xrange(nstart,nend):
                 ((1.0-alpha)*divspec_inc1[itimel]+alpha*divspec_inc1[itimer])
                 thetaspec_inc[nstep] =\
                 ((1.0-alpha)*thetaspec_inc1[itimel]+alpha*thetaspec_inc1[itimer])
-                #for nanal in xrange(nanals):
+                #for nanal in range(nanals):
                 #    # inverse transform to grid.
                 #    ug,vg = sp.getuv(vrtspec_inc[nstep,nanal,...],divspec_inc[nstep,nanal,...])
                 #    thetag = sp.spectogrd(thetaspec_inc[nstep,nanal,...])
@@ -398,9 +396,9 @@ for ntime in xrange(nstart,nend):
     divspec = divspec_fcst[0].copy()
     thetaspec = thetaspec_fcst[0].copy()
     # set model clocks at beginning of IAU window
-    for nanal in xrange(nanals):
+    for nanal in range(nanals):
         models[nanal].t = obtimes[ntime]*3600. - 0.5*fhassim*3600.
-    for nstep in xrange(nsteps):
+    for nstep in range(nsteps):
         if nstep == nsteps/2:
             # check model clock
             if models[0].t/3600. != obtimes[ntime]:
@@ -411,14 +409,14 @@ for ntime in xrange(nstart,nend):
         divspec += wts_iau[nstep]*dt*divspec_inc[nstep,:,...]
         thetaspec += wts_iau[nstep]*dt*thetaspec_inc[nstep,:,...]
         # advance model one time step.
-        for nanal in xrange(nanals):
+        for nanal in range(nanals):
             vrtspec[nanal],divspec[nanal],thetaspec[nanal] = \
             models[nanal].rk4step(vrtspec[nanal],divspec[nanal],thetaspec[nanal])
 
     # run forecast ensemble from end of IAU interval
     # to beginning of next IAU window (no forcing)
     t1 = time.clock()
-    for nstep in xrange(nsteps):
+    for nstep in range(nsteps):
         vrtspec_fcst[nstep] = vrtspec[:]
         divspec_fcst[nstep] = divspec[:]
         thetaspec_fcst[nstep] = thetaspec[:]
@@ -427,7 +425,7 @@ for ntime in xrange(nstart,nend):
             if models[0].t/3600. != obtimes[ntime+1]:
                 raise ValueError('model/ob time mismatch %s vs %s' %\
                 (models[0].t/3600., obtimes[ntime+1]))
-        for nanal in xrange(nanals):
+        for nanal in range(nanals):
             vrtspec[nanal],divspec[nanal],thetaspec[nanal] = \
             models[nanal].rk4step(vrtspec[nanal],divspec[nanal],thetaspec[nanal])
     vrtspec_fcst[nsteps] = vrtspec[:]
@@ -436,8 +434,3 @@ for ntime in xrange(nstart,nend):
 
     t2 = time.clock()
     if profile:print 'cpu time for ens forecast',t2-t1
-
-# dump out ensemble for restart
-cPickle.dump(vrtspec_fcst,open('vrtspec_fcst.pkl',mode='wb'),protocol=2)
-cPickle.dump(divspec_fcst,open('divspec_fcst.pkl',mode='wb'),protocol=2)
-cPickle.dump(thetaspec_fcst,open('thetaspec_fcst.pkl',mode='wb'),protocol=2)
