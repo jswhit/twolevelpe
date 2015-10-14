@@ -134,15 +134,17 @@ class TwoLevel(object):
             # need to remove global mean vertical velocity or
             # global mean temp will increase.
             self.heat = 0.25*(divg + np.abs(divg) - wmean)*self.delth*(1.-self.moistfact)
+            heatspec = self.sp.grdtospec(self.heat)
         else: # moistfact=1 is dry model
             self.heat = np.zeros(self.theta.shape, self.theta.dtype)
+            heatspec = np.zeros(thetaspec.shape, thetaspec.dtype)
         umean = 0.5*(ug[1,:,:]+ug[0,:,:])
         vmean = 0.5*(vg[1,:,:]+vg[0,:,:])
         # temp eqn - flux term
         tmpg1 = -umean*thetag; tmpg2 = -vmean*thetag
         tmpspec1, dthetadtspec = self.sp.getvrtdivspec(tmpg1,tmpg2)
         # hyperdiffusion, vertical advection, thermal relaxation.
-        dthetadtspec += self.hyperdiff*thetaspec +\
+        dthetadtspec += self.hyperdiff*thetaspec + heatspec +\
         (self.thetarefspec-thetaspec)/self.tdiab - 0.5*self.delth*divspec
         return dvrtdtspec,ddivdtspec,dthetadtspec
 
@@ -178,9 +180,9 @@ if __name__ == "__main__":
     from mpl_toolkits.basemap import Basemap, addcyclic
 
     # grid, time step info
-    nlons = 96  # number of longitudes
-    ntrunc = 32      # spectral truncation (for alias-free computations)
-    dt = 3600 # time step in seconds
+    nlons = 128 # number of longitudes
+    ntrunc = 42      # spectral truncation (for alias-free computations)
+    dt = 2700 # time step in seconds
     nlats = nlons/2  # for regular grid.
     gridtype = 'gaussian'
 
@@ -189,7 +191,7 @@ if __name__ == "__main__":
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
     # create model instance using default parameters.
-    model = TwoLevel(sp,dt,moistfact=0.01)
+    model = TwoLevel(sp,dt,moistfact=0.1)
 
     # vort, div initial conditions
     psipert = np.zeros((2,model.nlat,model.nlon),np.float)
@@ -219,7 +221,7 @@ if __name__ == "__main__":
     lons1d = np.degrees(model.lons[0,:]); lats1d = np.degrees(model.lats[::-1,0])
     lons1d_save = lons1d.copy()
     w, lons1d = addcyclic(w, lons1d_save)
-    im=m.imshow(w,cmap=plt.cm.RdBu_r,vmin=-5,vmax=5,interpolation="nearest")
+    im=m.imshow(w,cmap=plt.cm.RdBu_r,vmin=-4,vmax=4,interpolation="nearest")
     txt=ax.text(0.5,0.95,'W Day %10.2f' % \
         float(model.t/86400.),ha='center',color='k',fontsize=18,transform=ax.transAxes)
 
