@@ -43,8 +43,12 @@ class TwoLevel(object):
         self.lons,self.lats = np.meshgrid(lons1d,sp.lats)
         self.nlat = self.sp.nlats; self.nlon = self.sp.nlons
         # weights for computing global means.
-        wts = np.cos(self.lats)
-        self.globalmeanwts = np.ones((self.nlat,self.nlon))*wts[np.newaxis,:]
+        if self.sp.gridtype == 'gaussian':
+            self.globalmeanwts =\
+            np.ones((self.nlat,self.nlon))*self.sp.gauwts[:,np.newaxis]
+        else:
+            self.globalmeanwts =\
+            np.ones((self.nlat,self.nlon))*np.cos(self.lats)
         self.globalmeanwts = self.globalmeanwts/self.globalmeanwts.sum()
         self.f = 2.*omega*np.sin(self.lats) # coriolis
         # create laplacian operator and its inverse.

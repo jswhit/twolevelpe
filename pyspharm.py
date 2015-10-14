@@ -82,6 +82,12 @@ class Spharmt(object):
         self.nlm = self._shtns.nlm
         self.degree = self._shtns.l
         self.order = self._shtns.m
+        if gridtype == 'gaussian':
+            self.gauwts =\
+            np.concatenate((self._shtns.gauss_wts(),self._shtns.gauss_wts()[::-1]))
+        else:
+            self.gauwts = None
+        self.gridtype = gridtype
         self.lap = -self.degree*(self.degree+1.0).astype(np.complex)
         self.invlap = np.zeros(self.lap.shape, self.lap.dtype)
         self.invlap[1:] = 1./self.lap[1:]
