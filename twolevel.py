@@ -11,7 +11,7 @@ class TwoLevel(object):
 
     def __init__(self,sp,dt,ptop=0.,p0=1.e5,grav=9.80616,omega=7.292e-5,cp=1004,\
             rgas=287.,efold=3600.,ndiss=8,tdrag=4.*86400,tdiab=20.*86400.,\
-            umax=40,jetexp=2,delth=20,moistfact=1.0):
+            umax=40,jetexp=2,delth=20):
         # set model parameters
         self.p0 = p0 # mean surface pressure
         self.ptop = ptop # model top pressure
@@ -20,10 +20,6 @@ class TwoLevel(object):
         self.omega = omega # rotation rate
         self.cp = cp # specific heat of dry air at constant pressure
         self.delth = delth # static stability
-        # factor to reduce static stability in rising air
-        # (crude moist physics assuming air is saturated)
-        # moistfact = 1 is dry model
-        self.moistfact = moistfact
         dp = 0.5*(ptop-p0)
         self.dp = dp
         exnf1 = cp*((p0+0.5*dp)/p0)**(rgas/cp)
@@ -128,14 +124,6 @@ class TwoLevel(object):
                       self.lap*(tmpspec - self.delta_exnf*thetaspec)
         # tendency of pot. temp.
         vadvtheta = 0.5*divg*self.delth
-        # in rising air, use reduced static stability
-        if self.moistfact < 1:
-            wmean = ((divg + np.abs(divg))*self.globalmeanwts).sum()
-            # need to remove global mean vertical velocity or
-            # global mean temp will increase.
-            self.heat = 0.25*(divg + np.abs(divg) - wmean)*self.delth*(1.-self.moistfact)
-        else: # moistfact=1 is dry model
-            self.heat = np.zeros(self.theta.shape, self.theta.dtype)
         umean = 0.5*(ug[1,:,:]+ug[0,:,:])
         vmean = 0.5*(vg[1,:,:]+vg[0,:,:])
         # temp eqn - flux term
@@ -189,7 +177,7 @@ if __name__ == "__main__":
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
     # create model instance using default parameters.
-    model = TwoLevel(sp,dt,moistfact=1.0)
+    model = TwoLevel(sp,dt)
 
     # vort, div initial conditions
     psipert = np.zeros((2,model.nlat,model.nlon),np.float)
