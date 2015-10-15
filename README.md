@@ -2,7 +2,7 @@ Python codes for ensemble data assimilation using a simple
 two-level primitive equation spectral model on a sphere.
 
 
-* twolevel.py:  model.
+* twolevel.py:  model. To generate an animation of the solution, run ``python twolevel.py`` (matplotlib and basemap must be installed).
 * enkf_utils.py: EnKF.
 * pyspharm.py: Spherical harmonic routines (uses [shtns](https://bitbucket.org/nschaeff/shtns)).
 * run_twolevel.py: generatre nature run.
