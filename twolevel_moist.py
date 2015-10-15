@@ -135,7 +135,7 @@ class TwoLevel(object):
             vadvtheta = vadvtheta - (vadvtheta*self.globalmeanwts).sum()
             vadvspec = self.sp.grdtospec(vadvtheta)
         else: # moistfact=1 is dry model
-            vadvspec = -0.5*self.delth*divspec
+            vadvspec = 0.5*self.delth*divspec
         umean = 0.5*(ug[1,:,:]+ug[0,:,:])
         vmean = 0.5*(vg[1,:,:]+vg[0,:,:])
         # temp eqn - flux term
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
     # create model instance using default parameters.
-    model = TwoLevel(sp,dt,moistfact=0.1)
+    model = TwoLevel(sp,dt,moistfact=0.01)
 
     # vort, div initial conditions
     psipert = np.zeros((2,model.nlat,model.nlon),np.float)
