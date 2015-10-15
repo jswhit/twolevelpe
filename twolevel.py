@@ -123,7 +123,6 @@ class TwoLevel(object):
         ddivdtspec += self.hyperdiff*divspec - \
                       self.lap*(tmpspec - self.delta_exnf*thetaspec)
         # tendency of pot. temp.
-        vadvtheta = 0.5*divg*self.delth
         umean = 0.5*(ug[1,:,:]+ug[0,:,:])
         vmean = 0.5*(vg[1,:,:]+vg[0,:,:])
         # temp eqn - flux term
