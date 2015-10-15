@@ -5,7 +5,7 @@ two-level primitive equation spectral model on a sphere.
 * ``twolevel.py``:  model. To generate an animation of the solution, run ``python twolevel.py`` ([matplotlib](http://matplotlib.org) and [basemap](http://matplotlib.org/basemap) must be installed).
 * ``enkf_utils.py``: EnKF code (for serial filter and LETKF).
 * ``pyspharm.py``: Spherical harmonic routines (uses [shtns](https://bitbucket.org/nschaeff/shtns)).
-* ``run_twolevel.py``: generatre nature run.
+* ``run_twolevel.py``: generatre nature run (requires [netcdf4-python](https://github.com/Unidata/netcdf4-python).
 * ``enkf_twolevel.py``: run EnKF experiment.
 * ``enkf_twolevel.py_iau.py``: run EnKF experiment using 4D IAU.
 
