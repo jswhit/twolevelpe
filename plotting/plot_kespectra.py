@@ -1,0 +1,61 @@
+import numpy as np
+from netCDF4 import Dataset
+import matplotlib.pyplot as plt
+from pyspharm import Spharmt
+
+def getvarspectrum(vrtspec,divspec,norm,indxm,indxn,ntrunc):
+    varspect = np.zeros(ntrunc+1,np.float)
+    nlm = (ntrunc+1)*(ntrunc+2)/2
+    for n in range(nlm):
+        vrtmag = (vrtspec[n]*np.conj(vrtspec[n])).real
+        divmag = (divspec[n]*np.conj(divspec[n])).real
+        if indxm[n] == 0:
+            varspect[indxn[n]] += norm[n]*vrtmag
+            varspect[indxn[n]] += norm[n]*divmag
+        else:
+            varspect[indxn[n]] += 2.*norm[n]*vrtmag
+            varspect[indxn[n]] += 2.*norm[n]*divmag
+    return varspect
+
+f = Dataset('truth_twolevel_t32_12h_moistfact1p0.nc')
+lats = f.variables['lat'][:]; lons = f.variables['lon'][:]
+u = f.variables['u']; v = f.variables['v']
+ntimes, nlevs, nlats, nlons = u.shape
+ntimes = 1000
+print nlons, nlats,  f.ntrunc, f.rsphere
+sp = Spharmt(nlons,nlats,int(f.ntrunc),f.rsphere,gridtype='gaussian')
+kenorm = (-0.25*sp.invlap).astype(np.float)
+kespecmean = None
+nout = 0
+for ntime in range(200,ntimes):
+    print ntime
+    vrtspec, divspec = sp.getvrtdivspec(u[ntime,1,...],v[ntime,1,...])
+    kespec = getvarspectrum(vrtspec,divspec,kenorm,sp.order,sp.degree,sp.ntrunc)
+    if kespecmean is None:
+        kespecmean = kespec
+    else:
+        kespecmean += kespec
+    nout += 1
+kespecmean = kespecmean/nout
+plt.loglog(np.arange(f.ntrunc+1),kespec,linewidth=2,\
+        label='dry')
+
+f.close()
+f = Dataset('truth_twolevel_t32_12h_moistfact0p01.nc')
+u = f.variables['u']; v = f.variables['v']
+kespecmean = None
+nout = 0
+for ntime in range(200,ntimes):
+    print ntime
+    vrtspec, divspec = sp.getvrtdivspec(u[ntime,1,...],v[ntime,1,...])
+    kespec = getvarspectrum(vrtspec,divspec,kenorm,sp.order,sp.degree,sp.ntrunc)
+    if kespecmean is None:
+        kespecmean = kespec
+    else:
+        kespecmean += kespec
+    nout += 1
+kespecmean = kespecmean/nout
+plt.loglog(np.arange(f.ntrunc+1),kespec,linewidth=2,\
+        label='moist')
+plt.show()
+f.close()
