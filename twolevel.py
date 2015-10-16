@@ -162,14 +162,13 @@ class TwoLevel(object):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
-    from mpl_toolkits.basemap import Basemap, addcyclic
 
     # grid, time step info
-    nlons = 128  # number of longitudes
-    ntrunc = 42      # spectral truncation (for alias-free computations)
+    nlons = 128 # number of longitudes
+    ntrunc = 42  # spectral truncation (for alias-free computations)
     dt = 2700 # time step in seconds
     nlats = nlons/2  # for regular grid.
-    gridtype = 'regular'
+    gridtype = 'gaussian'
 
     # create spherical harmonic instance.
     rsphere = 6.37122e6 # earth radius
@@ -196,29 +195,11 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=(16,8))
     vrtspec, divspec, thetaspec = model.rk4step(vrtspec, divspec, thetaspec)
     theta = sp.spectogrd(thetaspec)
-    ax1 = fig.add_subplot(121); ax1.axis('off')
-    ax2 = fig.add_subplot(122); ax2.axis('off')
+    ax = fig.add_subplot(111); ax.axis('off')
     plt.tight_layout()
-    # plot NH and SH hemisphere polar projections (2 panels)
-    m1 = Basemap(projection='npaeqd',boundinglat=20,lon_0=270,ax=ax1)
-    m2 = Basemap(projection='spaeqd',boundinglat=-20,lon_0=90,ax=ax2)
-    # transform to nx x ny regularly spaced projection grid
-    dx = np.pi*sp.rsphere/sp.nlons # twice the resolution of the transform grid
-    nx = int((m1.xmax-m1.xmin)/dx)+1; ny = int((m1.ymax-m1.ymin)/dx)+1
-    # note that lats are reversed so that they are increasing - otherwise
-    # interpolation in transform_scalar won't work.  That's why NH and SH labels
-    # are switched on maps.
-    lons1d = np.degrees(model.lons[0,:]); lats1d = np.degrees(model.lats[::-1,0])
-    lons1d_save = lons1d.copy()
-    theta, lons1d = addcyclic(theta, lons1d_save)
-    theta1 = m1.transform_scalar(theta,lons1d,lats1d,nx,ny)
-    theta2 = m2.transform_scalar(theta,lons1d,lats1d,nx,ny)
-    im1=m1.imshow(theta1,cmap=plt.cm.spectral,vmin=-40,vmax=20,interpolation="nearest")
-    im2=m2.imshow(theta2,cmap=plt.cm.spectral,vmin=-40,vmax=20,interpolation="nearest",origin="upper")
-    txt1=ax1.text(0.5,0.95,'SH Pot Temp Day %10.2f' % \
-        float(model.t/86400.),ha='center',color='w',fontsize=18,transform=ax1.transAxes)
-    txt2=ax2.text(0.5,0.95,'NH Pot Temp Day %10.2f' % \
-        float(model.t/86400.),ha='center',color='w',fontsize=18,transform=ax2.transAxes)
+    im=ax.imshow(theta,cmap=plt.cm.spectral,vmin=-40,vmax=20,interpolation="nearest")
+    txt=ax.text(0.5,0.95,'Potential Temp Day %10.2f' % \
+        float(model.t/86400.),ha='center',color='w',fontsize=18,transform=ax.transAxes)
 
     model.t = 0 # reset clock
     nout = int(3.*3600./model.dt) # plot interval
@@ -226,17 +207,10 @@ if __name__ == "__main__":
         global vrtspec, divspec, thetaspec
         for n in range(nout):
             vrtspec, divspec, thetaspec = model.rk4step(vrtspec, divspec, thetaspec)
-        theta = sp.spectogrd(thetaspec)
-        theta, lonstmp = addcyclic(theta, lons1d_save)
-        theta1 = m1.transform_scalar(theta,lons1d,lats1d,nx,ny)
-        theta2 = m2.transform_scalar(theta,lons1d,lats1d,nx,ny)
-        im1.set_data(theta1)
-        txt1.set_text('SH Pot Temp Day %10.2f' % \
+        im.set_data(sp.spectogrd(thetaspec))
+        txt.set_text('Potential Temp Day %10.2f' % \
                      float(model.t/86400.))
-        im2.set_data(theta2)
-        txt2.set_text('NH Pot Temp Day %10.2f' % \
-                     float(model.t/86400.))
-        return im1,im2,txt1,txt2,
+        return im,txt,
 
     ani = animation.FuncAnimation(fig,updatefig,interval=0,blit=False)
     plt.show()
