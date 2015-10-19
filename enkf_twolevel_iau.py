@@ -61,7 +61,7 @@ spout = sp
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt))
+    models.append(TwoLevel(sp,dt,umax=60))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
@@ -191,7 +191,7 @@ if obshr_interval < 0.:
     # regular enkf (dump all the increment in at
     # one time step in the middle of the window).
     wts_iau[:] = 0.
-    wts_iau[nstep/2]=1./dt
+    wts_iau[nsteps/2]=1./dt
 
 for ntime in range(nassim):
 
