@@ -21,8 +21,8 @@ output_file = 'truth_twolevel_t%s_%sh.nc' % (ntrunc,int(fhout))
 rsphere = 6.37122e6 # earth radius
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
-nstart = int((100.*86400.)/dt) # end of spinup period
-nmax = int((5100.*86400.)/dt) # total duration of run
+nstart = int((200.*86400.)/dt) # end of spinup period
+nmax = int((1200.*86400.)/dt) # total duration of run
 
 # create model instance
 model = TwoLevel(sp,dt)
@@ -46,7 +46,7 @@ nc.rsphere = rsphere
 nc.gridtype = gridtype
 nc.ntrunc = ntrunc
 nc.dt = dt
-atts = ['moistfact','grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp']
+atts = ['grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp']
 for att in atts:
     nc.setncattr(att,model.__dict__[att])
 lat = nc.createDimension('lat',sp.nlats)
