@@ -21,7 +21,7 @@ covinflate = float(sys.argv[2])
 # 0 means 3DIAU, < 0 means no IAU.
 obshr_interval = float(sys.argv[3])
 #use_letkf = bool(int(sys.argv[4]))
-use_letkf = True
+use_letkf = False
 
 profile = bool(os.getenv('PROFILE')) # turn on profiling?
 if use_letkf:
