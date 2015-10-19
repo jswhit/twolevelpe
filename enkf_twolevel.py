@@ -3,7 +3,8 @@ from twolevel import TwoLevel
 import numpy as np
 from netCDF4 import Dataset
 import sys, time
-from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts
+from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
+                        letkf_calcwts,letkf_update
 
 # EnKF cycling for two-level model with mid-level temp obs
 
@@ -18,6 +19,11 @@ covlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
 
 profile = False # turn on profiling?
+use_letkf = False # use LETKF?
+if use_letkf:
+    print '# using LETKF...'
+else:
+    print '# using serial EnSRF...'
 
 nobs = 256  # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
@@ -54,7 +60,7 @@ spout = sp
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt))
+    models.append(TwoLevel(sp,dt,umax=60))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
@@ -142,10 +148,13 @@ thetaspec = np.empty((nanals,sp.nlm),np.complex)
 for nanal in range(nanals):
     vrtspec[nanal], divspec[nanal] = sp.getvrtdivspec(uens[nanal],vens[nanal])
     thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
-xens = np.empty((nanals,5*sp.nlons*sp.nlats),np.float) # empty 1d state vector array
+nvars = 5
+ndim1 = sp.nlons*sp.nlats
+ndim = nvars*ndim1
+xens = np.empty((nanals,ndim),np.float) # empty 1d state vector array
 
 # precompute covariance localization for fixed observation network.
-covlocal1 = np.zeros((nobsall,sp.nlons*sp.nlats),np.float)
+covlocal1 = np.zeros((nobsall,ndim1),np.float)
 hcovlocal = np.zeros((nobsall,nobsall),np.float)
 modellats = np.degrees(sp.lats)
 modellons = np.degrees(sp.lons)
@@ -262,13 +271,20 @@ for ntime in range(nassim):
         oblats = oblatsall; oblons = oblonsall
         thetaobs = thetaobsall[ntime]
         obindx = np.arange(nobs)
-        covlocal_tmp = covlocal; hcovlocal_tmp = hcovlocal
+        if use_letkf:
+            covlocal_tmp = covlocal1
+        else:
+            covlocal_tmp = covlocal
+            hcovlocal_tmp = hcovlocal
     elif nobsall > nobs:
         obindx = np.random.choice(np.arange(nobsall),size=nobs,replace=False)
         oblats = oblatsall[obindx]; oblons = oblonsall[obindx]
         thetaobs = np.ascontiguousarray(thetaobsall[ntime,obindx])
-        covlocal_tmp = np.ascontiguousarray(covlocal[obindx,:])
-        hcovlocal_tmp = np.ascontiguousarray(hcovlocal[obindx,:][:,obindx])
+        if use_letkf:
+            covlocal_tmp = np.ascontiguousarray(covlocal1[obindx,:])
+        else:
+            covlocal_tmp = np.ascontiguousarray(covlocal[obindx,:])
+            hcovlocal_tmp = np.ascontiguousarray(hcovlocal[obindx,:][:,obindx])
     else:
         raise ValueError('nobsall must be >= nobs')
     if oberrstdev > 0.: # add observation error
@@ -324,13 +340,29 @@ for ntime in range(nassim):
     t1 = time.clock()
     # create 1d state vector.
     for nanal in range(nanals):
-        xens[nanal] = np.concatenate((uens[nanal,0,...],uens[nanal,1,...],\
-                      vens[nanal,0,...],vens[nanal,1,...],thetaens[nanal])).ravel()
+        if use_letkf:
+            uens1 = uens[nanal].reshape((2,ndim1))
+            vens1 = vens[nanal].reshape((2,ndim1))
+            thetaens1 = thetaens[nanal].reshape((ndim1,))
+            for n in range(ndim1):
+                xens[nanal,nvars*n] = uens1[0,n]
+                xens[nanal,nvars*n+1] = uens1[1,n]
+                xens[nanal,nvars*n+2] = vens1[0,n]
+                xens[nanal,nvars*n+3] = vens1[1,n]
+                xens[nanal,nvars*n+4] = thetaens1[n]
+                n += 1
+        else:
+            xens[nanal] = np.concatenate((uens[nanal,0,...],uens[nanal,1,...],\
+                          vens[nanal,0,...],vens[nanal,1,...],thetaens[nanal])).ravel()
     xmean_b = xens.mean(axis=0); xprime = xens-xmean_b
     # background spread.
     fsprd = (xprime**2).sum(axis=0)/(nanals-1)
     # update state vector.
-    xens = serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp)
+    if use_letkf:
+        wts = letkf_calcwts(hxens,thetaobs-hxensmean,oberrvar,covlocal_ob=covlocal_tmp)
+        xens = letkf_update(xens,wts)
+    else:
+        xens = serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp)
     xmean = xens.mean(axis=0); xprime = xens-xmean
     # analysis spread
     asprd = (xprime**2).sum(axis=0)/(nanals-1)
@@ -348,12 +380,24 @@ for ntime in range(nassim):
     xens = xmean + xprime
     # 1d vector back to 3d arrays.
     for nanal in range(nanals):
-        xsplit = np.split(xens[nanal],5)
-        uens[nanal,0,...] = xsplit[0].reshape((sp.nlats,sp.nlons))
-        uens[nanal,1,...] = xsplit[1].reshape((sp.nlats,sp.nlons))
-        vens[nanal,0,...] = xsplit[2].reshape((sp.nlats,sp.nlons))
-        vens[nanal,1,...] = xsplit[3].reshape((sp.nlats,sp.nlons))
-        thetaens[nanal]   = xsplit[4].reshape((sp.nlats,sp.nlons))
+        if use_letkf:
+            for n in range(ndim1):
+                uens1[0,n] = xens[nanal,nvars*n]
+                uens1[1,n] = xens[nanal,nvars*n+1]
+                vens1[0,n] = xens[nanal,nvars*n+2]
+                vens1[1,n] = xens[nanal,nvars*n+3]
+                thetaens1[n] = xens[nanal,nvars*n+4]
+                n += 1
+            uens[nanal] = uens1.reshape((2,sp.nlats,sp.nlons))
+            vens[nanal] = vens1.reshape((2,sp.nlats,sp.nlons))
+            thetaens[nanal] = thetaens1.reshape((sp.nlats,sp.nlons,))
+        else:
+            xsplit = np.split(xens[nanal],5)
+            uens[nanal,0,...] = xsplit[0].reshape((sp.nlats,sp.nlons))
+            uens[nanal,1,...] = xsplit[1].reshape((sp.nlats,sp.nlons))
+            vens[nanal,0,...] = xsplit[2].reshape((sp.nlats,sp.nlons))
+            vens[nanal,1,...] = xsplit[3].reshape((sp.nlats,sp.nlons))
+            thetaens[nanal]   = xsplit[4].reshape((sp.nlats,sp.nlons))
         vrtspec[nanal], divspec[nanal] = sp.getvrtdivspec(uens[nanal],vens[nanal])
         thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
         wens[nanal] =\
