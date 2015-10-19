@@ -21,7 +21,7 @@ covinflate = float(sys.argv[2])
 # 0 means 3DIAU, < 0 means no IAU.
 obshr_interval = float(sys.argv[3])
 #use_letkf = bool(int(sys.argv[4]))
-use_letkf = False
+use_letkf = True
 
 profile = bool(os.getenv('PROFILE')) # turn on profiling?
 if use_letkf:
@@ -328,11 +328,15 @@ for ntime in range(nassim):
             for nanal in range(nanals):
                 if use_letkf:
                     for n in range(ndim1):
-                        uens1[0,n] = xens[nanal,nvars*n]
-                        uens1[1,n] = xens[nanal,nvars*n+1]
-                        vens1[0,n] = xens[nanal,nvars*n+2]
-                        vens1[1,n] = xens[nanal,nvars*n+3]
-                        thetaens1[n] = xens[nanal,nvars*n+4]
+                        uens1[0,n] = xens[nanal,nvars*n]-xens_b[nanal,nvars*n]
+                        uens1[1,n] =\
+                        xens[nanal,nvars*n+1]-xens_b[nanal,nvars*n+1]
+                        vens1[0,n] =\
+                        xens[nanal,nvars*n+2]-xens_b[nanal,nvars*n+2]
+                        vens1[1,n] =\
+                        xens[nanal,nvars*n+3]-xens_b[nanal,nvars*n+3]
+                        thetaens1[n] =\
+                        xens[nanal,nvars*n+4]-xens_b[nanal,nvars*n+4]
                         n += 1
                     ug = uens1.reshape((2,sp.nlats,sp.nlons))
                     vg = vens1.reshape((2,sp.nlats,sp.nlons))

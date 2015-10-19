@@ -203,8 +203,6 @@ def letkf_update(xens,wts):
     using precomputed analysis weights (assuming no vertical localization)."""
     nanals, ndim = xens.shape
     xmean = xens.mean(axis=0); xprime = xens-xmean
-    xmean_b = xmean.copy()
-    xensb = xens.copy()
     if len(wts.shape) == 2: # ETKF (no localization, global weights)
         xens = xmean + np.dot(wts.T, xprime)
     else: # LETKF (wts for every horizontal grid point)
@@ -212,7 +210,4 @@ def letkf_update(xens,wts):
         for n in xrange(ndim1):
             xens[:,nvars*n:nvars*(n+1)] = xmean[nvars*n:nvars*(n+1)] +\
             np.dot(wts[n].T, xprime[:,nvars*n:nvars*(n+1)])
-    # posterior inflation
-    xmean = xens.mean(axis=0); xprime = xens-xmean
-    asprd = (xprime**2).sum(axis=0)/(nanals-1)
-    return xmean + xprime - xensb
+    return xens
