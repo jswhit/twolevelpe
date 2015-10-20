@@ -4,9 +4,9 @@ import numpy as np
 from netCDF4 import Dataset
 
 # grid, time step info
-nlons = 128; nlats = nlons/2  # number of longitudes/latitudes
-ntrunc = 42
-dt = 2700. # time step in seconds
+#nlons = 128; nlats = nlons/2  # number of longitudes/latitudes
+#ntrunc = 42
+#dt = 2700. # time step in seconds
 
 nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
 ntrunc = 32
@@ -26,6 +26,7 @@ nmax = int((1200.*86400.)/dt) # total duration of run
 
 # create model instance
 model = TwoLevel(sp,dt)
+#model = TwoLevel(sp,dt,umax=66,tdrag=3.*86400.,tdiab=15.*86400.)
 
 # vort, div initial conditions
 psipert = np.zeros((2,model.nlat,model.nlon),np.float)
@@ -57,6 +58,8 @@ u = nc.createVariable('u',np.float32,('t','layer','lat','lon'),zlib=True)
 u.units = 'meters per second'
 v = nc.createVariable('v',np.float32,('t','layer','lat','lon'),zlib=True)
 u.units = 'meters per second'
+w = nc.createVariable('w',np.float32,('t','lat','lon'),zlib=True)
+w.units = 'Pa per second'
 theta = nc.createVariable('theta',np.float32,('t','lat','lon'),zlib=True)
 theta.units = 'K'
 lats = nc.createVariable('lat',np.float,('lat',))
@@ -74,9 +77,11 @@ print "# timestep, hour, vmin, vmax"
 for n in range(nmax):
     vrtspec, divspec, thetaspec = model.rk4step(vrtspec, divspec, thetaspec)
     if n >= nstart-1 and model.t % (fhout*3600.) == 0.:
-        print n,model.t/86400.,model.v.min(), model.v.max()
+        wout = model.dp*model.sp.spectogrd(divspec)
+        print n,model.t/86400.,model.v.min(), model.v.max(), wout.min(), wout.max()
         time[nn] = model.t/3600.
         u[nn] = model.u; v[nn] = model.v
         theta[nn] = model.theta
+        w[nn] = wout
         nn += 1
 nc.close()
