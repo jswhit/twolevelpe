@@ -60,7 +60,7 @@ spout = sp
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt,umax=60))
+    models.append(TwoLevel(sp,dt))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
