@@ -102,6 +102,7 @@ class TwoLevel(object):
         thetag = self.sp.spectogrd(thetaspec)
         self.u = ug; self.v = vg; self.divg = divg
         self.vrt = vrtg; self.theta = thetag
+        self.w = self.dp*divg
         vadvu = 0.25*(divg*(ug[1,:,:]-ug[0,:,:]))
         vadvv = 0.25*(divg*(vg[1,:,:]-vg[0,:,:]))
         # horizontal vorticity flux
@@ -195,12 +196,27 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=(16,8))
     vrtspec, divspec, thetaspec = model.rk4step(vrtspec, divspec, thetaspec)
     thetamean = (model.theta*model.globalmeanwts).sum()
-    theta = model.theta - thetamean
+    varplot = 'theta'
+    #varplot = 'w'
+    #varplot = 'u'
+    if varplot == 'theta':
+        data = model.theta - thetamean
+        vmax = 50; vmin = -vmax
+        cmap = plt.cm.RdBu_r
+    elif varplot == 'u':
+        data = model.u[1]
+        vmax = 120; vmin = -vmax
+        cmap = plt.cm.RdBu_r
+    else:
+        data = model.w
+        vmax = 20; vmin = -vmax
+        cmap = plt.cm.RdBu_r
+    vmin = -vmax
     ax = fig.add_subplot(111); ax.axis('off')
     plt.tight_layout()
-    im=ax.imshow(theta,cmap=plt.cm.RdBu_r,vmin=-50,vmax=50,interpolation="nearest")
-    txt=ax.text(0.5,0.95,'Potential Temp Day %10.2f' % \
-        float(model.t/86400.),ha='center',color='w',fontsize=18,transform=ax.transAxes)
+    im=ax.imshow(data,cmap=cmap,vmin=vmin,vmax=vmax,interpolation="nearest")
+    txt=ax.text(0.5,0.95,'%s day %10.2f' % \
+        (varplot,float(model.t/86400.)),ha='center',color='k',fontsize=18,transform=ax.transAxes)
 
     model.t = 0 # reset clock
     nout = int(3.*3600./model.dt) # plot interval
@@ -208,11 +224,15 @@ if __name__ == "__main__":
         global vrtspec, divspec, thetaspec
         for n in range(nout):
             vrtspec, divspec, thetaspec = model.rk4step(vrtspec, divspec, thetaspec)
-        thetamean = (model.theta*model.globalmeanwts).sum()
-        theta = model.theta - thetamean
-        im.set_data(theta)
-        txt.set_text('Potential Temp Day %10.2f' % \
-                     float(model.t/86400.))
+        if varplot == 'theta':
+            thetamean = (model.theta*model.globalmeanwts).sum()
+            im.set_data(model.theta - thetamean)
+        elif varplot == 'u':
+            im.set_data(model.u[1])
+        else:
+            im.set_data(model.w)
+        txt.set_text('%s day %10.2f' % \
+                     (varplot,float(model.t/86400.)))
         return im,txt,
 
     ani = animation.FuncAnimation(fig,updatefig,interval=0,blit=False)
