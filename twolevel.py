@@ -175,7 +175,7 @@ if __name__ == "__main__":
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
     # create model instance using default parameters.
-    model = TwoLevel(sp,dt)
+    model = TwoLevel(sp,dt,delth=10,umax=66,tdrag=3.*86400.,tdiab=15.*86400.)
 
     # vort, div initial conditions
     psipert = np.zeros((2,model.nlat,model.nlon),np.float)
@@ -194,10 +194,11 @@ if __name__ == "__main__":
 
     fig = plt.figure(figsize=(16,8))
     vrtspec, divspec, thetaspec = model.rk4step(vrtspec, divspec, thetaspec)
-    theta = sp.spectogrd(thetaspec)
+    thetamean = (model.theta*model.globalmeanwts).sum()
+    theta = model.theta - thetamean
     ax = fig.add_subplot(111); ax.axis('off')
     plt.tight_layout()
-    im=ax.imshow(theta,cmap=plt.cm.spectral,vmin=-40,vmax=20,interpolation="nearest")
+    im=ax.imshow(theta,cmap=plt.cm.RdBu_r,vmin=-50,vmax=50,interpolation="nearest")
     txt=ax.text(0.5,0.95,'Potential Temp Day %10.2f' % \
         float(model.t/86400.),ha='center',color='w',fontsize=18,transform=ax.transAxes)
 
@@ -207,7 +208,9 @@ if __name__ == "__main__":
         global vrtspec, divspec, thetaspec
         for n in range(nout):
             vrtspec, divspec, thetaspec = model.rk4step(vrtspec, divspec, thetaspec)
-        im.set_data(sp.spectogrd(thetaspec))
+        thetamean = (model.theta*model.globalmeanwts).sum()
+        theta = model.theta - thetamean
+        im.set_data(theta)
         txt.set_text('Potential Temp Day %10.2f' % \
                      float(model.t/86400.))
         return im,txt,
