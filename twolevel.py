@@ -176,7 +176,7 @@ if __name__ == "__main__":
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
     # create model instance using default parameters.
-    model = TwoLevel(sp,dt,delth=10,umax=66,tdrag=3.*86400.,tdiab=15.*86400.)
+    model = TwoLevel(sp,dt)
 
     # vort, div initial conditions
     psipert = np.zeros((2,model.nlat,model.nlon),np.float)
