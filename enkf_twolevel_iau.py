@@ -20,8 +20,8 @@ covinflate = float(sys.argv[2])
 # interval to compute increments (in hours) within IAU window.
 # 0 means 3DIAU, < 0 means no IAU.
 obshr_interval = float(sys.argv[3])
-#use_letkf = bool(int(sys.argv[4]))
-use_letkf = False
+use_letkf = bool(int(sys.argv[4]))
+#use_letkf = True
 
 profile = bool(os.getenv('PROFILE')) # turn on profiling?
 if use_letkf:
@@ -36,7 +36,7 @@ nobs = 256 # number of obs to assimilate
 nobsall = nobs
 nanals = 10 # ensemble members
 oberrstdev = 1.0 # ob error in meters
-nassim = 801 # assimilation times to run
+nassim = 1001 # assimilation times to run
 gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
@@ -47,8 +47,9 @@ gridtype = 'gaussian'
 dt = 3600. #  time step in seconds
 rsphere = 6.37122e6 # earth radius
 
-# fix random seed for reproducibility.
-np.random.seed(42)
+# set random states
+rs1 = np.random.RandomState(seed=42) # reproduce obs
+rs2 = np.random.RandomState(seed=None)  # different ensemble each run
 
 # model nature run to sample initial ensemble and draw additive noise.
 modelclimo_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
@@ -61,7 +62,7 @@ spout = sp
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt))
+    models.append(TwoLevel(sp,dt,umax=60))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
@@ -146,7 +147,7 @@ thetaspec_inc = np.empty((nsteps+1,nanals,sp.nlm),np.complex)
 vrtspec_inc1 = np.empty((nsteps_iau+1,nanals,2,sp.nlm),np.complex)
 divspec_inc1 = np.empty((nsteps_iau+1,nanals,2,sp.nlm),np.complex)
 thetaspec_inc1 = np.empty((nsteps_iau+1,nanals,sp.nlm),np.complex)
-indx = np.random.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
+indx = rs2.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
 print '# fhassim,nsteps,nsteps_iau = ',fhassim,nsteps,nsteps_iau
 
 nanal=0
@@ -209,7 +210,7 @@ for ntime in range(nassim):
             covlocal_tmp = covlocal
             hcovlocal_tmp = hcovlocal
     elif nobsall > nobs:
-        obindx = np.random.choice(np.arange(nobsall),size=nobs,replace=False)
+        obindx = rs1.choice(np.arange(nobsall),size=nobs,replace=False)
         oblats = oblatsall[obindx]; oblons = oblonsall[obindx]
         thetaobs = np.ascontiguousarray(thetaobsall[ntime,obindx])
         if use_letkf:
@@ -220,7 +221,7 @@ for ntime in range(nassim):
     else:
         raise ValueError('nobsall must be >= nobs')
     if oberrstdev > 0.: # add observation error
-        thetaobs += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
+        thetaobs += rs1.normal(scale=oberrstdev,size=nobs) # add ob errors
     for nanal in range(nanals):
         # inverse transform to grid at obs time (center of IAU window).
         uens[nanal],vens[nanal] = sp.getuv(vrtspec_fcst[nsteps/2,nanal,...],divspec_fcst[nsteps/2,nanal,...])
@@ -255,8 +256,8 @@ for ntime in range(nassim):
     uvsprd0 = np.sqrt((uvsprd0*globalmeanwts).sum())
     # print rms wind, w and temp error & spread plus
     # plus innov stats for background only (at center of window).
-    print "%s %g %g %g %g %g %g %g %g %g %g %g" %\
-    (ntime,theterr,thetsprd,werr,wsprd,uverr0,uvsprd0,uverr1,uvsprd1,\
+    print "%s %5i %4.2f %g %g %g %g %g %g %g %g %g %g %g" %\
+    (ntime,int(covlocal_scale/1000),covinflate,theterr,thetsprd,werr,wsprd,uverr0,uvsprd0,uverr1,uvsprd1,\
            np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
     if ntime==nassim-1: break
 
