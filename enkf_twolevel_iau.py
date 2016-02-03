@@ -36,7 +36,7 @@ nobs = 256 # number of obs to assimilate
 nobsall = nobs
 nanals = 10 # ensemble members
 oberrstdev = 1.0 # ob error in meters
-nassim = 1001 # assimilation times to run
+nassim = 2201 # assimilation times to run
 gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
@@ -62,7 +62,7 @@ spout = sp
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt,umax=60))
+    models.append(TwoLevel(sp,dt))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
