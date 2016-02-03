@@ -4,9 +4,9 @@ import numpy as np
 from netCDF4 import Dataset
 
 # grid, time step info
-#nlons = 128; nlats = nlons/2  # number of longitudes/latitudes
-#ntrunc = 42
-#dt = 2700. # time step in seconds
+#nlons = 192; nlats = nlons/2  # number of longitudes/latitudes
+#ntrunc = 64
+#dt = 1800. # time step in seconds
 
 nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
 ntrunc = 32
@@ -15,18 +15,18 @@ dt = 3600. # time step in seconds
 fhout = 12. # output interval (hours)
 
 gridtype = 'gaussian' # 'regular' or 'gaussian'
-output_file = 'truth_twolevel_t%s_%sh.nc' % (ntrunc,int(fhout))
+output_file = 'truth_twolevel_t%s_%sh_tst.nc' % (ntrunc,int(fhout))
 
 # create spherical harmonic instance.
 rsphere = 6.37122e6 # earth radius
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
 nstart = int((200.*86400.)/dt) # end of spinup period
-nmax = int((1200.*86400.)/dt) # total duration of run
+nmax = int((1300.*86400.)/dt) # total duration of run
 
 # create model instance
 model = TwoLevel(sp,dt)
-#model = TwoLevel(sp,dt,umax=66,tdrag=3.*86400.,tdiab=15.*86400.)
+print 'pole/equator temp diff = ',model.thetaref.max()-model.thetaref.min()
 
 # vort, div initial conditions
 psipert = np.zeros((2,model.nlat,model.nlon),np.float)
