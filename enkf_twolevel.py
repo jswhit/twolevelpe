@@ -10,13 +10,19 @@ from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
 
 if len(sys.argv) == 1:
    msg="""
-python enkf_twolevel.py covlocal_scale covinflate
+python enkf_twolevel.py covlocal_scale covinflate1 (covinflate2)
    """
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
 # covariance inflation parameter.
-covinflate = float(sys.argv[2])
+covinflate1 = float(sys.argv[2])
+covinflate2 = 0.
+# if covinflate2 not specified, RTPS inflation used.
+# if covinflate2 given, use Hodyss & Campbell inflation
+# with a = covinflate1, b = covinflate2
+if len(sys.argv) > 3:
+    covinflate2 = float(sys.argv[3])
 
 profile = False # turn on profiling?
 use_letkf = False # use LETKF?
@@ -33,7 +39,7 @@ nobs = 256  # number of obs to assimilate
 nobsall = nobs
 nanals = 10 # ensemble members
 oberrstdev = 1.0 # ob error in K
-nassim = 801 # assimilation times to run
+nassim = 2001 # assimilation times to run
 gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
@@ -60,7 +66,7 @@ spout = sp
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt))
+    models.append(TwoLevel(sp,dt,umax=60))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
@@ -89,8 +95,8 @@ else:
     nobsall = len(oblatsall)
 
 print '# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev)
-print '# covlocal_scale=%s km, covinflate=%s' %\
-(covlocal_scale/1000., covinflate)
+print '# covlocal_scale=%s km, covinflate1=%s covinflate2=%s' %\
+(covlocal_scale/1000., covinflate1, covinflate2)
 thetaobsall = np.empty((nassim,nobsall),np.float)
 utruth = np.empty((nassim,2,nlats,nlons),np.float)
 vtruth = np.empty((nassim,2,nlats,nlons),np.float)
@@ -184,7 +190,8 @@ if savedata is not None:
     ncout.ntrunc = ntrunc
     ncout.dt = dt
     ncout.nassim = nassim
-    ncout.covinflate = covinflate
+    ncout.covinflate1 = covinflate1
+    ncout.covinflate2 = covinflate2
     ncout.covlocal_scale = covlocal_scale
     ncout.truth_file = truth_file
     ncout.modelclimo_file = modelclimo_file
@@ -367,15 +374,14 @@ for ntime in range(nassim):
     # analysis spread
     asprd = (xprime**2).sum(axis=0)/(nanals-1)
     # posterior inflation
-    if covinflate < 1:
-        # relaxation to prior stdev (Whitaker and Hamill)
-        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-        inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
+    if covinflate2 == 0:
+        # relaxation to prior spread (Whitaker and Hamill)
+        inflation_factor = np.sqrt(1.+covinflate1*(fsprd-asprd)/asprd)
     else:
         # Hodyss and Campbell
         inc = xmean - xmean_b
-        inflation_factor = np.sqrt(1. + \
-        covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
+        inflation_factor = np.sqrt(covinflate1 + \
+        (asprd/fsprd**2)*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1))))
     xprime = xprime*inflation_factor
     xens = xmean + xprime
     # 1d vector back to 3d arrays.
