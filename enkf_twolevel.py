@@ -39,7 +39,7 @@ nobs = 256  # number of obs to assimilate
 nobsall = nobs
 nanals = 10 # ensemble members
 oberrstdev = 1.0 # ob error in K
-nassim = 2001 # assimilation times to run
+nassim = 2201 # assimilation times to run
 gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
@@ -376,7 +376,10 @@ for ntime in range(nassim):
     # posterior inflation
     if covinflate2 == 0:
         # relaxation to prior spread (Whitaker and Hamill)
-        inflation_factor = np.sqrt(1.+covinflate1*(fsprd-asprd)/asprd)
+        # relax variance
+        #inflation_factor = np.sqrt(1.+covinflate1*(fsprd-asprd)/asprd)
+        # relax st. deviation
+        inflation_factor = 1.+covinflate1*(np.sqrt(fsprd)-np.sqrt(asprd))/np.sqrt(asprd)
     else:
         # Hodyss and Campbell
         inc = xmean - xmean_b
