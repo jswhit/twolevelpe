@@ -5,13 +5,13 @@ import matplotlib.pyplot as plt
 plt.figure()
 f1 = Dataset('/Volumes/Drobo/enkf_twolevel_test1.nc')
 lats = f1.variables['lat'][:]; lons = f1.variables['lon'][:]
-thetensmean1 = f1.variables['thetensmeana'][:]
-thetsprd1 = f1.variables['thetsprda'][:]
-thettruth = f1.variables['thettruth'][:]
+thetensmean1 = f1.variables['thetensmeana'][200:]
+thetsprd1 = f1.variables['thetsprda'][200:]
+thettruth = f1.variables['thettruth'][200:]
 f1.close()
 f2 = Dataset('/Volumes/Drobo/enkf_twolevel_test2.nc')
-thetensmean2 = f2.variables['thetensmeana'][:]
-thetsprd2 = f2.variables['thetsprda'][:]
+thetensmean2 = f2.variables['thetensmeana'][200:]
+thetsprd2 = f2.variables['thetsprda'][200:]
 f2.close()
 theterr1 = (((thetensmean1-thettruth)**2).mean(axis=0)).mean(axis=-1)
 theterr2 = (((thetensmean2-thettruth)**2).mean(axis=0)).mean(axis=-1)
