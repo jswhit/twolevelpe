@@ -2,7 +2,7 @@ from pyspharm import Spharmt, regrid, regriduv
 from twolevel import TwoLevel
 import numpy as np
 from netCDF4 import Dataset
-import sys, time, os, cPickle
+import sys, time, os
 from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
                         letkf_calcwts,letkf_update
 
@@ -37,11 +37,11 @@ nobsall = nobs
 nanals = 10 # ensemble members
 oberrstdev = 1.0 # ob error in meters
 nassim = 2201 # assimilation times to run
-gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
+gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
 # grid, time step info
-nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
+nlons = 96; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = 32 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
 dt = 3600. #  time step in seconds

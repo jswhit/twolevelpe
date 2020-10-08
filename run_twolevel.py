@@ -19,7 +19,7 @@ dt = 3600. # time step in seconds
 fhout = 12. # output interval (hours)
 
 gridtype = 'gaussian' # 'regular' or 'gaussian'
-output_file = 'truth_twolevel_t%s_%sh_tst.nc' % (ntrunc,int(fhout))
+output_file = 'truth_twolevel_t%s_%sh.nc' % (ntrunc,int(fhout))
 
 # create spherical harmonic instance.
 rsphere = 6.37122e6 # earth radius

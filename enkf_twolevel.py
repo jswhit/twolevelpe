@@ -35,17 +35,17 @@ nobs = 256  # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
-#nobsall = 10*nobs
-nobsall = nobs
+nobsall = 10*nobs
+#nobsall = nobs
 nanals = 10 # ensemble members
 oberrstdev = 1.0 # ob error in K
 nassim = 2201 # assimilation times to run
-gaussian=True # if True, use Gaussian function similar to Gaspari-Cohn
+gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
 # grid, time step info
-nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
-ntrunc = nlons/3 # spectral truncation (for alias-free computations)
+nlons = 96; nlats = nlons//2  # number of longitudes/latitudes
+ntrunc = nlons//3 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
 dt = 3600. # time step in seconds
 rsphere = 6.37122e6 # earth radius

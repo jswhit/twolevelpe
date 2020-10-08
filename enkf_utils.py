@@ -23,7 +23,7 @@ def fibonacci_pts(npts,latmin,latmax):
     inc = pi * (3.0 - np.sqrt(5.0))
     off = 2. / npts
     lats = []; lons = []
-    for k in xrange(npts):
+    for k in range(npts):
        y = k*off - 1. + 0.5*off
        r = np.sqrt(1 - y**2)
        phi = k * inc
@@ -189,7 +189,7 @@ def letkf_calcwts(hxens,ominusf,oberrs,covlocal_ob=None):
     if covlocal_ob is not None: # LETKF (horizontal localization)
         ndim1 = covlocal_ob.shape[1]
         wts = np.empty((ndim1,nanals,nanals),np.float)
-        for n in xrange(ndim1):
+        for n in range(ndim1):
             Rinv = np.diag(covlocal_ob[:,n]/oberrs)
             wts[n] = calcwts(hxprime,Rinv,ominusf)
     else: # ETKF (no localization)
@@ -207,7 +207,7 @@ def letkf_update(xens,wts):
         xens = xmean + np.dot(wts.T, xprime)
     else: # LETKF (wts for every horizontal grid point)
         ndim1 = wts.shape[0]; nvars = ndim/ndim1
-        for n in xrange(ndim1):
+        for n in range(ndim1):
             xens[:,nvars*n:nvars*(n+1)] = xmean[nvars*n:nvars*(n+1)] +\
             np.dot(wts[n].T, xprime[:,nvars*n:nvars*(n+1)])
     return xens
