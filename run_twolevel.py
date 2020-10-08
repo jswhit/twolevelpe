@@ -1,20 +1,18 @@
-import matplotlib
-matplotlib.use('qt4agg')
 from twolevel import TwoLevel
 from pyspharm import Spharmt
 import numpy as np
 from netCDF4 import Dataset
 
 # grid, time step info
-#nlons = 192; nlats = nlons/2  # number of longitudes/latitudes
+#nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
 #ntrunc = 64
 #dt = 1800. # time step in seconds
 
-#nlons = 128; nlats = nlons/2  # number of longitudes/latitudes
+#nlons = 128; nlats = nlons//2  # number of longitudes/latitudes
 #ntrunc = 42
 #dt = 2700. # time step in seconds
 
-nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
+nlons = 96; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = 32
 dt = 3600. # time step in seconds
 
@@ -32,7 +30,7 @@ nmax = int((1300.*86400.)/dt) # total duration of run
 
 # create model instance
 model = TwoLevel(sp,dt)
-print('pole/equator temp diff = %s' % model.thetaref.max()-model.thetaref.min())
+print('pole/equator temp diff = ', model.thetaref.max()-model.thetaref.min())
 
 # vort, div initial conditions
 psipert = np.zeros((2,model.nlat,model.nlon),np.float)

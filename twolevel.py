@@ -162,7 +162,7 @@ class TwoLevel(object):
 
 if __name__ == "__main__":
     import matplotlib
-    matplotlib.use('qt4agg')
+    matplotlib.use('agg')
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
 
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     nlons = 128 # number of longitudes
     ntrunc = 42  # spectral truncation (for alias-free computations)
     dt = 2700 # time step in seconds
-    nlats = nlons/2  # for regular grid.
+    nlats = nlons//2  # for regular grid.
     gridtype = 'gaussian'
 
     # create spherical harmonic instance.
