@@ -162,7 +162,7 @@ class TwoLevel(object):
 
 if __name__ == "__main__":
     import matplotlib
-    matplotlib.use('agg')
+    matplotlib.use('qt4agg')
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
 
@@ -211,7 +211,7 @@ if __name__ == "__main__":
         cmap = plt.cm.RdBu_r
     else:
         data = model.w
-        vmax = 20; vmin = -vmax
+        vmax = 10; vmin = -vmax
         cmap = plt.cm.RdBu_r
     vmin = -vmax
     ax = fig.add_subplot(111); ax.axis('off')
