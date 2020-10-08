@@ -21,8 +21,8 @@ theterr1av = (theterr1*np.cos(np.radians(lats))).sum()/np.cos(np.radians(lats)).
 theterr2av = (theterr2*np.cos(np.radians(lats))).sum()/np.cos(np.radians(lats)).sum()
 thetsprd1av = (thetsprd1*np.cos(np.radians(lats))).sum()/np.cos(np.radians(lats)).sum()
 thetsprd2av = (thetsprd2*np.cos(np.radians(lats))).sum()/np.cos(np.radians(lats)).sum()
-print 'min/max/mean error:',theterr1.min(), theterr2.max(), theterr1av, theterr2av
-print 'min/max/mean sprd:',thetsprd1.min(), thetsprd2.max(), thetsprd1av, thetsprd2av
+print('min/max/mean error:',theterr1.min(), theterr2.max(), theterr1av, theterr2av)
+print('min/max/mean sprd:',thetsprd1.min(), thetsprd2.max(), thetsprd1av, thetsprd2av)
 plt.plot(lats,np.sqrt(theterr1),'b',label='RTPS inf err (%4.2f)' %\
         np.sqrt(theterr1av),linewidth=1)
 plt.plot(lats,np.sqrt(theterr2),'r',label='obs dep inf err (%4.2f)' %\

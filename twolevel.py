@@ -161,6 +161,8 @@ class TwoLevel(object):
             return vrtspec,divspec,thetaspec
 
 if __name__ == "__main__":
+    import matplotlib
+    matplotlib.use('qt4agg')
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
 

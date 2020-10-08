@@ -25,9 +25,9 @@ use_letkf = bool(int(sys.argv[4]))
 
 profile = bool(os.getenv('PROFILE')) # turn on profiling?
 if use_letkf:
-    print '# using LETKF...'
+    print('# using LETKF...')
 else:
-    print '# using serial EnSRF...'
+    print('# using serial EnSRF...')
 
 nobs = 256 # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
@@ -90,9 +90,9 @@ if nobs == nobsall:
 else:
     nobsall = len(oblatsall)
 
-print '# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev)
-print '# covlocal_scale=%s km, covinflate=%s obshr_interval=%s' %\
-(covlocal_scale/1000., covinflate, obshr_interval)
+print('# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev))
+print('# covlocal_scale=%s km, covinflate=%s obshr_interval=%s' %\
+(covlocal_scale/1000., covinflate, obshr_interval))
 thetaobsall = np.empty((nassim,nobsall),np.float)
 utruth = np.empty((nassim,2,nlats,nlons),np.float)
 vtruth = np.empty((nassim,2,nlats,nlons),np.float)
@@ -148,7 +148,7 @@ vrtspec_inc1 = np.empty((nsteps_iau+1,nanals,2,sp.nlm),np.complex)
 divspec_inc1 = np.empty((nsteps_iau+1,nanals,2,sp.nlm),np.complex)
 thetaspec_inc1 = np.empty((nsteps_iau+1,nanals,sp.nlm),np.complex)
 indx = rs2.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
-print '# fhassim,nsteps,nsteps_iau = ',fhassim,nsteps,nsteps_iau
+print('# fhassim,nsteps,nsteps_iau = ',fhassim,nsteps,nsteps_iau)
 
 nanal=0
 for n in indx:
@@ -256,13 +256,13 @@ for ntime in range(nassim):
     uvsprd0 = np.sqrt((uvsprd0*globalmeanwts).sum())
     # print rms wind, w and temp error & spread plus
     # plus innov stats for background only (at center of window).
-    print "%s %5i %4.2f %g %g %g %g %g %g %g %g %g %g %g" %\
+    print("%s %5i %4.2f %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,int(covlocal_scale/1000),covinflate,theterr,thetsprd,werr,wsprd,uverr0,uvsprd0,uverr1,uvsprd1,\
-           np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
+           np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
     if ntime==nassim-1: break
 
     t2 = time.clock()
-    if profile: print 'cpu time for forward operator',t2-t1
+    if profile: print('cpu time for forward operator',t2-t1)
 
     # EnKF update
     t1 = time.clock()
@@ -277,7 +277,7 @@ for ntime in range(nassim):
             # constant IAU
             calc_inc = nstep == nsteps/2
         if calc_inc:
-            #print nstep,nstep_iau
+            #print(nstep,nstep_iau)
             for nanal in range(nanals):
                 # inverse transform to grid.
                 ug,vg = sp.getuv(vrtspec_fcst[nstep,nanal,...],divspec_fcst[nstep,nanal,...])
@@ -324,7 +324,7 @@ for ntime in range(nassim):
                 #(asprd/fsprd**2)*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1))))
             xprime = xprime*inflation_factor
             xens = xmean + xprime
-            #print (xens-xens_b).min(),(xens-xens_b).max()
+            #print((xens-xens_b).min(),(xens-xens_b).max())
             # 1d vector back to 3d arrays.
             for nanal in range(nanals):
                 if use_letkf:
@@ -357,10 +357,10 @@ for ntime in range(nassim):
                 #ug,vg =\
                 #sp.getuv(vrtspec_inc1[nstep_iau,nanal,...],divspec_inc1[nstep_iau,nanal,...])
                 #thetag = sp.spectogrd(thetaspec_inc1[nstep_iau,nanal,...])
-                #print nstep_iau,nanal,ug.min(),ug.max(),thetag.min(),thetag.max()
+                #print(nstep_iau,nanal,ug.min(),ug.max(),thetag.min(),thetag.max())
             nstep_iau += 1
     t2 = time.clock()
-    if profile: print 'cpu time for EnKF update',t2-t1
+    if profile: print('cpu time for EnKF update',t2-t1)
 
     # linearly interpolate increments to every time in IAU window.
     if nsteps_iau == 0:
@@ -376,7 +376,7 @@ for ntime in range(nassim):
                 itimel = int(nstep_iau)
                 alpha = itime - float(itimel)
                 itimer = min(nsteps_iau,itimel+1)
-                #print nstep,itimel,1.-alpha,itimer,alpha
+                #print(nstep,itimel,1.-alpha,itimer,alpha)
                 vrtspec_inc[nstep] =\
                 ((1.0-alpha)*vrtspec_inc1[itimel]+alpha*vrtspec_inc1[itimer])
                 divspec_inc[nstep] =\
@@ -387,7 +387,7 @@ for ntime in range(nassim):
                 #    # inverse transform to grid.
                 #    ug,vg = sp.getuv(vrtspec_inc[nstep,nanal,...],divspec_inc[nstep,nanal,...])
                 #    thetag = sp.spectogrd(thetaspec_inc[nstep,nanal,...])
-                #    print nstep,nanal,ug.min(),ug.max(),thetag.min(),thetag.max()
+                #    print(nstep,nanal,ug.min(),ug.max(),thetag.min(),thetag.max())
                 nstep += 1
         vrtspec_inc[nsteps] = vrtspec_inc1[nsteps_iau]
         divspec_inc[nsteps] = divspec_inc1[nsteps_iau]
@@ -436,4 +436,4 @@ for ntime in range(nassim):
     thetaspec_fcst[nsteps] = thetaspec[:]
 
     t2 = time.clock()
-    if profile:print 'cpu time for ens forecast',t2-t1
+    if profile:print('cpu time for ens forecast',t2-t1)

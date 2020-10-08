@@ -27,9 +27,9 @@ if len(sys.argv) > 3:
 profile = False # turn on profiling?
 use_letkf = False # use LETKF?
 if use_letkf:
-    print '# using LETKF...'
+    print('# using LETKF...')
 else:
-    print '# using serial EnSRF...'
+    print('# using serial EnSRF...')
 
 nobs = 256  # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
@@ -94,9 +94,9 @@ if nobs == nobsall:
 else:
     nobsall = len(oblatsall)
 
-print '# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev)
-print '# covlocal_scale=%s km, covinflate1=%s covinflate2=%s' %\
-(covlocal_scale/1000., covinflate1, covinflate2)
+print('# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev))
+print('# covlocal_scale=%s km, covinflate1=%s covinflate2=%s' %\
+(covlocal_scale/1000., covinflate1, covinflate2))
 thetaobsall = np.empty((nassim,nobsall),np.float)
 utruth = np.empty((nassim,2,nlats,nlons),np.float)
 vtruth = np.empty((nassim,2,nlats,nlons),np.float)
@@ -178,7 +178,7 @@ covlocal = np.tile(covlocal1,5)
 
 fhassim = obtimes[1]-obtimes[0] # assim interval  (assumed constant)
 nsteps = int(fhassim*3600/models[0].dt) # time steps in assim interval
-print '# fhassim,nsteps = ',fhassim,nsteps
+print('# fhassim,nsteps = ',fhassim,nsteps)
 
 savedata = None
 #savedata = 'enkf_twolevel_test.nc'
@@ -331,7 +331,7 @@ for ntime in range(nassim):
     uvsprd0 = 0.5*(usprd[0]+vsprd[0])
     uvsprd0b = np.sqrt((uvsprd0*globalmeanwts).sum())
     t2 = time.clock()
-    if profile: print 'cpu time for forward operator',t2-t1
+    if profile: print('cpu time for forward operator',t2-t1)
 
     if savedata:
         u_ensmeanb[nout] = uensmean
@@ -418,7 +418,7 @@ for ntime in range(nassim):
     vinf[1,...] = infsplit[3].reshape((sp.nlats,sp.nlons))
     thetinf   = infsplit[4].reshape((sp.nlats,sp.nlons))
     t2 = time.clock()
-    if profile: print 'cpu time for EnKF update',t2-t1
+    if profile: print('cpu time for EnKF update',t2-t1)
 
     uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
     thetensmean = thetaens.mean(axis=0)
@@ -443,12 +443,12 @@ for ntime in range(nassim):
     uvsprd0a = np.sqrt((uvsprd0*globalmeanwts).sum())
     # print rms wind and temp error & spread (relative to truth for analysis
     # and background), plus innov stats for background.
-    print "%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
+    print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,theterra,thetsprda,theterrb,thetsprdb,\
            werra,wsprda,werrb,wsprdb,\
            uverr0a,uvsprd0a,uverr0b,uvsprd0b,\
            uverr1a,uvsprd1a,uverr1b,uvsprd1b,
-           np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias)
+           np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
 
     # write out data.
     if savedata:
@@ -477,4 +477,4 @@ for ntime in range(nassim):
             vrtspec[nanal],divspec[nanal],thetaspec[nanal] = \
             models[nanal].rk4step(vrtspec[nanal],divspec[nanal],thetaspec[nanal])
     t2 = time.clock()
-    if profile:print 'cpu time for ens forecast',t2-t1
+    if profile:print('cpu time for ens forecast',t2-t1)

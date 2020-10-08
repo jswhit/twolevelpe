@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('qt4agg')
 from twolevel import TwoLevel
 from pyspharm import Spharmt
 import numpy as np
@@ -7,6 +9,10 @@ from netCDF4 import Dataset
 #nlons = 192; nlats = nlons/2  # number of longitudes/latitudes
 #ntrunc = 64
 #dt = 1800. # time step in seconds
+
+#nlons = 128; nlats = nlons/2  # number of longitudes/latitudes
+#ntrunc = 42
+#dt = 2700. # time step in seconds
 
 nlons = 96; nlats = nlons/2  # number of longitudes/latitudes
 ntrunc = 32
@@ -26,7 +32,7 @@ nmax = int((1300.*86400.)/dt) # total duration of run
 
 # create model instance
 model = TwoLevel(sp,dt)
-print 'pole/equator temp diff = ',model.thetaref.max()-model.thetaref.min()
+print('pole/equator temp diff = %s' % model.thetaref.max()-model.thetaref.min())
 
 # vort, div initial conditions
 psipert = np.zeros((2,model.nlat,model.nlon),np.float)
@@ -73,12 +79,12 @@ time.units = 'hours'
 
 # run model, write out netcdf.
 nn = 0
-print "# timestep, hour, vmin, vmax"
+print("# timestep, hour, vmin, vmax")
 for n in range(nmax):
     vrtspec, divspec, thetaspec = model.rk4step(vrtspec, divspec, thetaspec)
     if n >= nstart-1 and model.t % (fhout*3600.) == 0.:
         wout = model.dp*model.sp.spectogrd(divspec)
-        print n,model.t/86400.,model.v.min(), model.v.max(), wout.min(), wout.max()
+        print(n,model.t/86400.,model.v.min(), model.v.max(), wout.min(), wout.max())
         time[nn] = model.t/3600.
         u[nn] = model.u; v[nn] = model.v
         theta[nn] = model.theta
