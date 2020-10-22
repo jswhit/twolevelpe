@@ -11,7 +11,7 @@ class TwoLevel(object):
 
     def __init__(self,sp,dt,ptop=0.,p0=1.e5,grav=9.80616,omega=7.292e-5,cp=1004,\
             rgas=287.,efold=3600.,ndiss=8,tdrag=4.*86400,tdiab=20.*86400.,\
-            umax=40,jetexp=2,delth=20):
+            umax=40,jetexp=2,delth=20,moistfact=0.0):
         # set model parameters
         self.p0 = p0 # mean surface pressure
         self.ptop = ptop # model top pressure
@@ -33,6 +33,7 @@ class TwoLevel(object):
         self.dt = dt # time step (secs)
         self.tdiab = tdiab # lower layer drag timescale
         self.tdrag = tdrag # interface relaxation timescale
+        self.moistfact = moistfact # stability reduction factor in rising air.
         # create lat/lon arrays
         delta = 2.*np.pi/sp.nlons
         lons1d = np.arange(-np.pi,np.pi,delta)
@@ -129,9 +130,13 @@ class TwoLevel(object):
         # temp eqn - flux term
         tmpg1 = -umean*thetag; tmpg2 = -vmean*thetag
         tmpspec1, dthetadtspec = self.sp.getvrtdivspec(tmpg1,tmpg2)
-        # hyperdiffusion, vertical advection, thermal relaxation.
+        # add hyperdiffusion, thermal relaxation and vertical advection to temp eqn
         dthetadtspec += self.hyperdiff*thetaspec +\
         (self.thetarefspec-thetaspec)/self.tdiab - 0.5*self.delth*divspec
+        if self.moistfact > 0.: # latent heading
+            # reduced static stability in rising air 
+            heating = 0.5*self.delth*self.moistfact*0.5*(divg+abs(divg))
+            dthetadtspec += self.sp.grdtospec(heating)
         return dvrtdtspec,ddivdtspec,dthetadtspec
 
     def rk4step(self,vrtspec,divspecin,thetaspec):
@@ -166,10 +171,13 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
 
+    # fix random seed for reproducibility
+    np.random.seed(43)
+
     # grid, time step info
-    nlons = 128 # number of longitudes
-    ntrunc = 42  # spectral truncation (for alias-free computations)
-    dt = 2700 # time step in seconds
+    nlons = 256 # number of longitudes
+    ntrunc = 85  # spectral truncation (for alias-free computations)
+    dt = 600 # time step in seconds
     nlats = nlons//2  # for regular grid.
     gridtype = 'gaussian'
 
@@ -178,9 +186,9 @@ if __name__ == "__main__":
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
     # create model instance using default parameters.
-    model = TwoLevel(sp,dt)
+    model = TwoLevel(sp,dt,umax=80,jetexp=4,delth=20,tdrag=2.*86400,efold=4800.,moistfact=2./3.)
+    #model = TwoLevel(sp,dt,umax=80,jetexp=4,delth=20,tdrag=2.*86400,efold=4800.)
 
-    # vort, div initial conditions
     psipert = np.zeros((2,model.nlat,model.nlon),np.float)
     psipert[1,:,:] = 5.e6*np.sin((model.lons-np.pi))**12*np.sin(2.*model.lats)**12
     psipert = np.where(model.lons[np.newaxis,:,:] > 0., 0, psipert)
@@ -203,16 +211,16 @@ if __name__ == "__main__":
     #varplot = 'u'
     if varplot == 'theta':
         data = model.theta - thetamean
-        vmax = 50; vmin = -vmax
-        cmap = plt.cm.RdBu_r
+        vmax = 40; vmin = -vmax
+        cmap = plt.cm.twilight_shifted
     elif varplot == 'u':
         data = model.u[1]
         vmax = 120; vmin = -vmax
-        cmap = plt.cm.RdBu_r
+        cmap = plt.cm.bwr
     else:
         data = model.w
-        vmax = 10; vmin = -vmax
-        cmap = plt.cm.RdBu_r
+        vmax = 8; vmin = -vmax
+        cmap = plt.cm.bwr
     vmin = -vmax
     ax = fig.add_subplot(111); ax.axis('off')
     plt.tight_layout()
