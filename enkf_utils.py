@@ -206,7 +206,7 @@ def letkf_update(xens,wts):
     if len(wts.shape) == 2: # ETKF (no localization, global weights)
         xens = xmean + np.dot(wts.T, xprime)
     else: # LETKF (wts for every horizontal grid point)
-        ndim1 = wts.shape[0]; nvars = ndim/ndim1
+        ndim1 = wts.shape[0]; nvars = ndim//ndim1
         for n in range(ndim1):
             xens[:,nvars*n:nvars*(n+1)] = xmean[nvars*n:nvars*(n+1)] +\
             np.dot(wts[n].T, xprime[:,nvars*n:nvars*(n+1)])
