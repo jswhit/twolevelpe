@@ -105,14 +105,14 @@ def bilintrp(datain,xin,yin,xout,yout,checkbounds=True,cyclic_width=360.):
     xcoords = np.clip(xcoords,0,len(xin)-1)
     ycoords = np.clip(ycoords,0,len(yin)-1)
     # interpolate to output grid using bilinear interpolation.
-    xi = xcoords.astype(np.int)
-    yi = ycoords.astype(np.int)
+    xi = xcoords.astype(np.int32)
+    yi = ycoords.astype(np.int32)
     xip1 = xi+1
     yip1 = yi+1
     xip1 = np.clip(xip1,0,len(xin)-1)
     yip1 = np.clip(yip1,0,len(yin)-1)
-    delx = xcoords-xi.astype(np.float)
-    dely = ycoords-yi.astype(np.float)
+    delx = xcoords-xi.astype(np.float32)
+    dely = ycoords-yi.astype(np.float32)
     dataout = (1.-delx)*(1.-dely)*datain[yi,xi] + \
               delx*dely*datain[yip1,xip1] + \
               (1.-delx)*dely*datain[yip1,xi] + \
@@ -188,12 +188,12 @@ def letkf_calcwts(hxens,ominusf,oberrs,covlocal_ob=None):
         return np.sqrt(nanals-1)*painv + tmp[:,np.newaxis]
     if covlocal_ob is not None: # LETKF (horizontal localization)
         ndim1 = covlocal_ob.shape[1]
-        wts = np.empty((ndim1,nanals,nanals),np.float)
+        wts = np.empty((ndim1,nanals,nanals),np.float32)
         for n in range(ndim1):
             Rinv = np.diag(covlocal_ob[:,n]/oberrs)
             wts[n] = calcwts(hxprime,Rinv,ominusf)
     else: # ETKF (no localization)
-        wts = np.empty((nanals,nanals),np.float)
+        wts = np.empty((nanals,nanals),np.float32)
         Rinv = np.diag(1./oberrs)
         wts = calcwts(hxprime,Rinv,ominusf)
     return wts
