@@ -4,17 +4,17 @@ import numpy as np
 from netCDF4 import Dataset
 
 # grid, time step info
-#nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
-#ntrunc = 64
-#dt = 1800. # time step in seconds
+nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
+ntrunc = 64
+dt = 1800. # time step in seconds
 
 #nlons = 128; nlats = nlons//2  # number of longitudes/latitudes
 #ntrunc = 42
 #dt = 2700. # time step in seconds
 
-nlons = 96; nlats = nlons//2  # number of longitudes/latitudes
-ntrunc = 32
-dt = 3600. # time step in seconds
+#nlons = 96; nlats = nlons//2  # number of longitudes/latitudes
+#ntrunc = 32
+#dt = 3600. # time step in seconds
 
 fhout = 12. # output interval (hours)
 
@@ -26,19 +26,19 @@ rsphere = 6.37122e6 # earth radius
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
 nstart = int((200.*86400.)/dt) # end of spinup period
-nmax = int((1300.*86400.)/dt) # total duration of run
+nmax = int((1200.*86400.)/dt) # total duration of run
 
 # create model instance
-model = TwoLevel(sp,dt)
+model = TwoLevel(sp,dt,jetexp=4,umax=50,tdrag=2.*86400,tdiab=14.*86400.)
 print('pole/equator temp diff = ', model.thetaref.max()-model.thetaref.min())
 
 # vort, div initial conditions
-psipert = np.zeros((2,model.nlat,model.nlon),np.float)
+psipert = np.zeros((2,model.nlat,model.nlon),np.float32)
 psipert[1,:,:] = 5.e6*np.sin((model.lons-np.pi))**12*np.sin(2.*model.lats)**12
 psipert = np.where(model.lons[np.newaxis,:,:] > 0., 0, psipert)
 psipert[1,:,:] += np.random.normal(scale=1.e6,size=(sp.nlats,sp.nlons))
-ug = np.zeros((2,model.nlat,model.nlon),np.float)
-vg = np.zeros((2,model.nlat,model.nlon),np.float)
+ug = np.zeros((2,model.nlat,model.nlon),np.float32)
+vg = np.zeros((2,model.nlat,model.nlon),np.float32)
 ug[1,:,:] = model.umax*np.sin(2.*model.lats)**model.jetexp
 vrtspec, divspec = sp.getvrtdivspec(ug,vg)
 vrtspec = vrtspec + model.lap*sp.grdtospec(psipert)
@@ -66,13 +66,13 @@ w = nc.createVariable('w',np.float32,('t','lat','lon'),zlib=True)
 w.units = 'Pa per second'
 theta = nc.createVariable('theta',np.float32,('t','lat','lon'),zlib=True)
 theta.units = 'K'
-lats = nc.createVariable('lat',np.float,('lat',))
+lats = nc.createVariable('lat',np.float32,('lat',))
 lats.units = 'degrees north'
 lats[:] = np.degrees(sp.lats)
-lons = nc.createVariable('lon',np.float,('lon',))
+lons = nc.createVariable('lon',np.float32,('lon',))
 lons.units = 'degrees east'
 lons[:] = np.degrees(sp.lons)
-time = nc.createVariable('t',np.float,('t',))
+time = nc.createVariable('t',np.float32,('t',))
 time.units = 'hours'
 
 # run model, write out netcdf.

@@ -177,7 +177,7 @@ if __name__ == "__main__":
     # grid, time step info
     nlons = 192 # number of longitudes
     ntrunc = 64  # spectral truncation (for alias-free computations)
-    dt = 1200 # time step in seconds
+    dt = 1800 # time step in seconds
     nlats = nlons//2  # for regular grid.
     gridtype = 'gaussian'
 
