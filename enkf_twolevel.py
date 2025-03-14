@@ -31,20 +31,20 @@ if use_letkf:
 else:
     print('# using serial EnSRF...')
 
-nobs = 256  # number of obs to assimilate
+nobs = 1024 # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
 nobsall = 10*nobs
 #nobsall = nobs
-nanals = 10 # ensemble members
+nanals = 20 # ensemble members
 oberrstdev = 1.0 # ob error in K
-nassim = 2201 # assimilation times to run
+nassim = 2001 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
 # grid, time step info
-nlons = 96; nlats = nlons//2  # number of longitudes/latitudes
+nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = nlons//3 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
 dt = 3600. # time step in seconds
@@ -58,7 +58,7 @@ modelclimo_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
 # 'truth' nature run to sample obs
 # (these two files can be the same for perfect model expts)
 # file to sample additive noise.
-truth_file = 'truth_twolevel_t32_12h.nc'
+truth_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
@@ -81,8 +81,8 @@ samegrid = spin.nlons == spout.nlons and spin.nlats == spout.nlats
 if nobs == 1:
     nobsall = 1
     # single ob test.
-    oblonsall = np.array([180.], np.float)
-    oblatsall = np.array([45.], np.float)
+    oblonsall = np.array([180.], np.float32)
+    oblatsall = np.array([45.], np.float32)
 else:
     oblatsall,oblonsall =\
     fibonacci_pts(nobsall,np.degrees(sp.lats[-1]),np.degrees(sp.lats[0]))
@@ -97,13 +97,13 @@ else:
 print('# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev))
 print('# covlocal_scale=%s km, covinflate1=%s covinflate2=%s' %\
 (covlocal_scale/1000., covinflate1, covinflate2))
-thetaobsall = np.empty((nassim,nobsall),np.float)
-utruth = np.empty((nassim,2,nlats,nlons),np.float)
-vtruth = np.empty((nassim,2,nlats,nlons),np.float)
-wtruth = np.empty((nassim,nlats,nlons),np.float)
-thetatruth = np.empty((nassim,nlats,nlons),np.float)
-oberrvar = np.empty(nobs,np.float); oberrvar[:] = oberrstdev**2
-obtimes = np.empty((nassim),np.float)
+thetaobsall = np.empty((nassim,nobsall),np.float32)
+utruth = np.empty((nassim,2,nlats,nlons),np.float32)
+vtruth = np.empty((nassim,2,nlats,nlons),np.float32)
+wtruth = np.empty((nassim,nlats,nlons),np.float32)
+thetatruth = np.empty((nassim,nlats,nlons),np.float32)
+oberrvar = np.empty(nobs,np.float32); oberrvar[:] = oberrstdev**2
+obtimes = np.empty((nassim),np.float32)
 for n in range(nassim):
     # flip latitude direction so lats are increasing (needed for interpolation)
     vrtspec_tmp,divspec_tmp =\
@@ -129,13 +129,13 @@ nct.close()
 ncm = Dataset(modelclimo_file)
 indx = np.random.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
 #indx[:] = 0 # for testing forward operator
-thetaens = np.empty((nanals,sp.nlats,sp.nlons),np.float)
-wens = np.empty((nanals,sp.nlats,sp.nlons),np.float)
-uens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float)
-vens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float)
-thetinf = np.empty((sp.nlats,sp.nlons),np.float)
-uinf = np.empty((2,sp.nlats,sp.nlons),np.float)
-vinf = np.empty((2,sp.nlats,sp.nlons),np.float)
+thetaens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
+wens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
+uens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float32)
+vens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float32)
+thetinf = np.empty((sp.nlats,sp.nlons),np.float32)
+uinf = np.empty((2,sp.nlats,sp.nlons),np.float32)
+vinf = np.empty((2,sp.nlats,sp.nlons),np.float32)
 theta_modelclim = ncm.variables['theta']
 u_modelclim = ncm.variables['u']
 v_modelclim = ncm.variables['v']
@@ -148,20 +148,20 @@ for n in indx:
     nanal += 1
 
 # transform initial ensemble to spectral space
-vrtspec = np.empty((nanals,2,sp.nlm),np.complex)
-divspec = np.empty((nanals,2,sp.nlm),np.complex)
-thetaspec = np.empty((nanals,sp.nlm),np.complex)
+vrtspec = np.empty((nanals,2,sp.nlm),np.complex128)
+divspec = np.empty((nanals,2,sp.nlm),np.complex128)
+thetaspec = np.empty((nanals,sp.nlm),np.complex128)
 for nanal in range(nanals):
     vrtspec[nanal], divspec[nanal] = sp.getvrtdivspec(uens[nanal],vens[nanal])
     thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
 nvars = 5
 ndim1 = sp.nlons*sp.nlats
 ndim = nvars*ndim1
-xens = np.empty((nanals,ndim),np.float) # empty 1d state vector array
+xens = np.empty((nanals,ndim),np.float32) # empty 1d state vector array
 
 # precompute covariance localization for fixed observation network.
-covlocal1 = np.zeros((nobsall,ndim1),np.float)
-hcovlocal = np.zeros((nobsall,nobsall),np.float)
+covlocal1 = np.zeros((nobsall,ndim1),np.float32)
+hcovlocal = np.zeros((nobsall,nobsall),np.float32)
 modellats = np.degrees(sp.lats)
 modellons = np.degrees(sp.lons)
 modellons,modellats = np.meshgrid(modellons,modellats)
@@ -205,57 +205,57 @@ if savedata is not None:
     lon = ncout.createDimension('lon',sp.nlons)
     level = ncout.createDimension('level',2)
     timed = ncout.createDimension('t',None)
-    u_ensmeanb = ncout.createVariable('uensmeanb',np.float32,('t','level','lat','lon'),zlib=False)
+    u_ensmeanb = ncout.createVariable('uensmeanb',np.float3232,('t','level','lat','lon'),zlib=False)
     u_ensmeanb.units = 'meters per second'
-    v_ensmeanb = ncout.createVariable('vensmeanb',np.float32,('t','level','lat','lon'),zlib=False)
+    v_ensmeanb = ncout.createVariable('vensmeanb',np.float3232,('t','level','lat','lon'),zlib=False)
     v_ensmeanb.units = 'meters per second'
-    thet_ensmeanb = ncout.createVariable('thetensmeanb',np.float32,('t','lat','lon'),zlib=False)
+    thet_ensmeanb = ncout.createVariable('thetensmeanb',np.float3232,('t','lat','lon'),zlib=False)
     thet_ensmeanb.units = 'K'
-    w_ensmeanb = ncout.createVariable('wensmeanb',np.float32,('t','lat','lon'),zlib=False)
+    w_ensmeanb = ncout.createVariable('wensmeanb',np.float3232,('t','lat','lon'),zlib=False)
     w_ensmeanb.units = 'Pa per second'
-    u_ensmeana = ncout.createVariable('uensmeana',np.float32,('t','level','lat','lon'),zlib=False)
+    u_ensmeana = ncout.createVariable('uensmeana',np.float3232,('t','level','lat','lon'),zlib=False)
     u_ensmeana.units = 'meters per second'
-    v_ensmeana = ncout.createVariable('vensmeana',np.float32,('t','level','lat','lon'),zlib=False)
+    v_ensmeana = ncout.createVariable('vensmeana',np.float3232,('t','level','lat','lon'),zlib=False)
     v_ensmeana.units = 'meters per second'
-    thet_ensmeana = ncout.createVariable('thetensmeana',np.float32,('t','lat','lon'),zlib=False)
+    thet_ensmeana = ncout.createVariable('thetensmeana',np.float3232,('t','lat','lon'),zlib=False)
     thet_ensmeana.units = 'K'
-    w_ensmeana = ncout.createVariable('wensmeana',np.float32,('t','lat','lon'),zlib=False)
+    w_ensmeana = ncout.createVariable('wensmeana',np.float3232,('t','lat','lon'),zlib=False)
     w_ensmeana.units = 'Pa per second'
-    u_truth = ncout.createVariable('utruth',np.float32,('t','level','lat','lon'),zlib=False)
+    u_truth = ncout.createVariable('utruth',np.float3232,('t','level','lat','lon'),zlib=False)
     u_truth.units = 'meters per second'
-    v_truth = ncout.createVariable('vtruth',np.float32,('t','level','lat','lon'),zlib=False)
+    v_truth = ncout.createVariable('vtruth',np.float3232,('t','level','lat','lon'),zlib=False)
     v_truth.units = 'meters per second'
-    thet_truth = ncout.createVariable('thettruth',np.float32,('t','lat','lon'),zlib=False)
+    thet_truth = ncout.createVariable('thettruth',np.float3232,('t','lat','lon'),zlib=False)
     thet_truth.units = 'K'
-    w_truth = ncout.createVariable('wtruth',np.float32,('t','lat','lon'),zlib=False)
+    w_truth = ncout.createVariable('wtruth',np.float3232,('t','lat','lon'),zlib=False)
     w_truth.units = 'Pa per second'
-    u_sprdb = ncout.createVariable('usprdb',np.float32,('t','level','lat','lon'),zlib=False)
+    u_sprdb = ncout.createVariable('usprdb',np.float3232,('t','level','lat','lon'),zlib=False)
     u_sprdb.units = 'meters per second'
-    v_sprdb = ncout.createVariable('vsprdb',np.float32,('t','level','lat','lon'),zlib=False)
+    v_sprdb = ncout.createVariable('vsprdb',np.float3232,('t','level','lat','lon'),zlib=False)
     v_sprdb.units = 'meters per second'
-    thet_sprdb = ncout.createVariable('thetsprdb',np.float32,('t','lat','lon'),zlib=False)
+    thet_sprdb = ncout.createVariable('thetsprdb',np.float3232,('t','lat','lon'),zlib=False)
     thet_sprdb.units = 'K'
-    w_sprdb = ncout.createVariable('wsprdb',np.float32,('t','lat','lon'),zlib=False)
+    w_sprdb = ncout.createVariable('wsprdb',np.float3232,('t','lat','lon'),zlib=False)
     w_sprdb.units = 'Pa per second'
-    u_sprda = ncout.createVariable('usprda',np.float32,('t','level','lat','lon'),zlib=False)
+    u_sprda = ncout.createVariable('usprda',np.float3232,('t','level','lat','lon'),zlib=False)
     u_sprda.units = 'meters per second'
-    v_sprda = ncout.createVariable('vsprda',np.float32,('t','level','lat','lon'),zlib=False)
+    v_sprda = ncout.createVariable('vsprda',np.float3232,('t','level','lat','lon'),zlib=False)
     v_sprda.units = 'meters per second'
-    thet_sprda = ncout.createVariable('thetsprda',np.float32,('t','lat','lon'),zlib=False)
+    thet_sprda = ncout.createVariable('thetsprda',np.float3232,('t','lat','lon'),zlib=False)
     thet_sprda.units = 'K'
-    w_sprda = ncout.createVariable('wsprda',np.float32,('t','lat','lon'),zlib=False)
+    w_sprda = ncout.createVariable('wsprda',np.float3232,('t','lat','lon'),zlib=False)
     w_sprda.units = 'Pa per second'
-    uinflation = ncout.createVariable('uinflation',np.float32,('t','level','lat','lon'),zlib=False)
+    uinflation = ncout.createVariable('uinflation',np.float3232,('t','level','lat','lon'),zlib=False)
     uinflation.units = 'meters per second'
-    vinflation = ncout.createVariable('vinflation',np.float32,('t','level','lat','lon'),zlib=False)
+    vinflation = ncout.createVariable('vinflation',np.float3232,('t','level','lat','lon'),zlib=False)
     vinflation.units = 'meters per second'
-    thetinflation = ncout.createVariable('thetinflation',np.float32,('t','lat','lon'),zlib=False)
+    thetinflation = ncout.createVariable('thetinflation',np.float3232,('t','lat','lon'),zlib=False)
     thetinflation.units = 'K'
-    times = ncout.createVariable('t',np.float,('t',))
-    lats = ncout.createVariable('lat',np.float,('lat',))
+    times = ncout.createVariable('t',np.float32,('t',))
+    lats = ncout.createVariable('lat',np.float32,('lat',))
     lats.units = 'degrees north'
     lats[:] = np.degrees(sp.lats)
-    lons = ncout.createVariable('lon',np.float,('lon',))
+    lons = ncout.createVariable('lon',np.float32,('lon',))
     lons.units = 'degrees east'
     lons[:] = np.degrees(sp.lons)
 
@@ -271,9 +271,9 @@ for ntime in range(nassim):
         (models[0].t/3600., obtimes[ntime]))
 
     # compute forward operator.
-    t1 = time.clock()
+    t1 = time.time()
     # ensemble in observation space.
-    hxens = np.empty((nanals,nobs),np.float)
+    hxens = np.empty((nanals,nobs),np.float32)
     if nobs == nobsall:
         oblats = oblatsall; oblons = oblonsall
         thetaobs = thetaobsall[ntime]
@@ -330,7 +330,7 @@ for ntime in range(nassim):
     uverr0b = np.sqrt((uverr0*globalmeanwts).sum())
     uvsprd0 = 0.5*(usprd[0]+vsprd[0])
     uvsprd0b = np.sqrt((uvsprd0*globalmeanwts).sum())
-    t2 = time.clock()
+    t2 = time.time()
     if profile: print('cpu time for forward operator',t2-t1)
 
     if savedata:
@@ -344,7 +344,7 @@ for ntime in range(nassim):
         w_sprdb[nout] = wsprd
 
     # EnKF update
-    t1 = time.clock()
+    t1 = time.time()
     # create 1d state vector.
     for nanal in range(nanals):
         if use_letkf:
@@ -417,7 +417,7 @@ for ntime in range(nassim):
     vinf[0,...] = infsplit[2].reshape((sp.nlats,sp.nlons))
     vinf[1,...] = infsplit[3].reshape((sp.nlats,sp.nlons))
     thetinf   = infsplit[4].reshape((sp.nlats,sp.nlons))
-    t2 = time.clock()
+    t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
     uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
@@ -471,10 +471,10 @@ for ntime in range(nassim):
         nout += 1
 
     # run forecast ensemble to next analysis time
-    t1 = time.clock()
+    t1 = time.time()
     for nstep in range(nsteps):
         for nanal in range(nanals):
             vrtspec[nanal],divspec[nanal],thetaspec[nanal] = \
             models[nanal].rk4step(vrtspec[nanal],divspec[nanal],thetaspec[nanal])
-    t2 = time.clock()
+    t2 = time.time()
     if profile:print('cpu time for ens forecast',t2-t1)
