@@ -193,7 +193,8 @@ if __name__ == "__main__":
 
     # create model instance using default parameters.
     #model = TwoLevel(sp,dt,umax=80,jetexp=4,delth=20,tdrag=2.*86400,efold=4800.,moistfact=0.9)
-    model = TwoLevel(sp,dt,jetexp=4,umax=50,tdrag=2.*86400,tdiab=14.*86400.)
+    div2_diff_efold = 1.e30 # 1800.
+    model = TwoLevel(sp,dt,jetexp=4,umax=50,tdrag=2.*86400,tdiab=14.*86400.,div2_diff_efold=div2_diff_efold)
     #model = TwoLevel(sp,dt)
 
     psipert = np.zeros((2,model.nlat,model.nlon),np.float32)
