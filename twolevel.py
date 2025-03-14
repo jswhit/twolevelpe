@@ -49,13 +49,13 @@ class TwoLevel(object):
         self.globalmeanwts = self.globalmeanwts/self.globalmeanwts.sum()
         self.f = 2.*omega*np.sin(self.lats) # coriolis
         # create laplacian operator and its inverse.
-        self.lap = -sp.degree*(sp.degree+1.0).astype(np.complex)
+        self.lap = -sp.degree*(sp.degree+1.0).astype(np.complex128)
         self.ilap = np.zeros(self.lap.shape, self.lap.dtype)
         self.ilap[1:] = 1./self.lap[1:]
         self.lap = self.lap/self.rsphere**2
         self.ilap = self.ilap*self.rsphere**2
         # hyperdiffusion operator
-        indxn = sp.degree.astype(np.float)
+        indxn = sp.degree.astype(np.float32)
         totwavenum = indxn*(indxn+1.0)
         self.hyperdiff = -(1./efold)*(totwavenum/totwavenum[-1])**(ndiss/2)
         # set equilibrium layer thicknes profile.
@@ -167,7 +167,7 @@ class TwoLevel(object):
 
 if __name__ == "__main__":
     import matplotlib
-    matplotlib.use('qt4agg')
+    matplotlib.use('qtagg')
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
 
@@ -175,9 +175,9 @@ if __name__ == "__main__":
     np.random.seed(43)
 
     # grid, time step info
-    nlons = 256 # number of longitudes
-    ntrunc = 85  # spectral truncation (for alias-free computations)
-    dt = 600 # time step in seconds
+    nlons = 192 # number of longitudes
+    ntrunc = 64  # spectral truncation (for alias-free computations)
+    dt = 1200 # time step in seconds
     nlats = nlons//2  # for regular grid.
     gridtype = 'gaussian'
 
@@ -186,15 +186,16 @@ if __name__ == "__main__":
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
     # create model instance using default parameters.
-    model = TwoLevel(sp,dt,umax=80,jetexp=4,delth=20,tdrag=2.*86400,efold=4800.,moistfact=2./3.)
-    #model = TwoLevel(sp,dt,umax=80,jetexp=4,delth=20,tdrag=2.*86400,efold=4800.)
+    #model = TwoLevel(sp,dt,umax=80,jetexp=4,delth=20,tdrag=2.*86400,efold=4800.,moistfact=0.9)
+    model = TwoLevel(sp,dt,jetexp=4,umax=50,tdrag=2.*86400,tdiab=14.*86400.)
+    #model = TwoLevel(sp,dt)
 
-    psipert = np.zeros((2,model.nlat,model.nlon),np.float)
+    psipert = np.zeros((2,model.nlat,model.nlon),np.float32)
     psipert[1,:,:] = 5.e6*np.sin((model.lons-np.pi))**12*np.sin(2.*model.lats)**12
     psipert = np.where(model.lons[np.newaxis,:,:] > 0., 0, psipert)
     psipert[1,:,:] += np.random.normal(scale=1.e6,size=(sp.nlats,sp.nlons))
-    ug = np.zeros((2,model.nlat,model.nlon),np.float)
-    vg = np.zeros((2,model.nlat,model.nlon),np.float)
+    ug = np.zeros((2,model.nlat,model.nlon),np.float32)
+    vg = np.zeros((2,model.nlat,model.nlon),np.float32)
     ug[1,:,:] = model.umax*np.sin(2.*model.lats)**model.jetexp
     vrtspec, divspec = sp.getvrtdivspec(ug,vg)
     vrtspec = vrtspec + model.lap*sp.grdtospec(psipert)
