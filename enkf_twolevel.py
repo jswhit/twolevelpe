@@ -31,7 +31,7 @@ if use_letkf:
 else:
     print('# using serial EnSRF...')
 
-nobs = 1024 # number of obs to assimilate
+nobs = 512 # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
@@ -47,14 +47,15 @@ gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
 nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = nlons//3 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
-dt = 3600. # time step in seconds
-rsphere = 6.37122e6 # earth radius
 
 # fix random seed for reproducibility.
 np.random.seed(42)
 
 # model nature run to sample initial ensemble and draw additive noise.
 modelclimo_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
+ncm = Dataset(modelclimo_file)
+dt = ncm.dt
+rsphere = ncm.rsphere
 # 'truth' nature run to sample obs
 # (these two files can be the same for perfect model expts)
 # file to sample additive noise.
@@ -126,7 +127,6 @@ nct.close()
 
 # create initial ensemble by randomly sampling climatology
 # of forecast model.
-ncm = Dataset(modelclimo_file)
 indx = np.random.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
 #indx[:] = 0 # for testing forward operator
 thetaens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)

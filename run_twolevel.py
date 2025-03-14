@@ -16,7 +16,7 @@ dt = 1800. # time step in seconds
 #ntrunc = 32
 #dt = 3600. # time step in seconds
 
-fhout = 12. # output interval (hours)
+fhout = 6. # output interval (hours)
 
 gridtype = 'gaussian' # 'regular' or 'gaussian'
 output_file = 'truth_twolevel_t%s_%sh.nc' % (ntrunc,int(fhout))
