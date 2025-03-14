@@ -10,7 +10,7 @@ from pyspharm import Spharmt
 class TwoLevel(object):
 
     def __init__(self,sp,dt,ptop=0.,p0=1.e5,grav=9.80616,omega=7.292e-5,cp=1004,\
-            rgas=287.,efold=3600.,ndiss=8,tdrag=4.*86400,tdiab=20.*86400.,\
+            rgas=287.,efold=3600.,div2_diff_efold=1.e30,ndiss=8,tdrag=4.*86400,tdiab=20.*86400.,\
             umax=40,jetexp=2,delth=20,moistfact=0.0):
         # set model parameters
         self.p0 = p0 # mean surface pressure
@@ -58,6 +58,12 @@ class TwoLevel(object):
         indxn = sp.degree.astype(np.float32)
         totwavenum = indxn*(indxn+1.0)
         self.hyperdiff = -(1./efold)*(totwavenum/totwavenum[-1])**(ndiss/2)
+        self.div2_diff_efold = div2_diff_efold
+        if div2_diff_efold < 1.e10:
+            # extra laplacian diffusion of divergence to damp gravity waves
+            self.divlapdiff = -(1./self.div2_diff_efold)*(totwavenum/totwavenum[-1])
+        else:
+            self.divlapdiff = 0.
         # set equilibrium layer thicknes profile.
         self.jetexp = jetexp
         self.umax = umax
@@ -122,7 +128,7 @@ class TwoLevel(object):
         # add laplacian term and hyperdiffusion to div tend.
         ke = 0.5*(ug**2+vg**2)
         tmpspec = self.sp.grdtospec(ke[1,:,:]-ke[0,:,:])
-        ddivdtspec += self.hyperdiff*divspec - \
+        ddivdtspec += self.hyperdiff*divspec + self.divlapdiff*divspec - \
                       self.lap*(tmpspec - self.delta_exnf*thetaspec)
         # tendency of pot. temp.
         umean = 0.5*(ug[1,:,:]+ug[0,:,:])
