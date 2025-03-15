@@ -25,13 +25,13 @@ if len(sys.argv) > 3:
     covinflate2 = float(sys.argv[3])
 
 profile = False # turn on profiling?
-use_letkf = False # use LETKF?
+use_letkf = True # use LETKF?
 if use_letkf:
     print('# using LETKF...')
 else:
     print('# using serial EnSRF...')
 
-nobs = 512 # number of obs to assimilate
+nobs = 1024 # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
@@ -47,19 +47,21 @@ gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
 nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = nlons//3 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
+#div2_diff_efold = 1.e30
+div2_diff_efold = 1800.
 
 # fix random seed for reproducibility.
 np.random.seed(42)
 
 # model nature run to sample initial ensemble and draw additive noise.
-modelclimo_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
+modelclimo_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
 ncm = Dataset(modelclimo_file)
 dt = ncm.dt
 rsphere = ncm.rsphere
 # 'truth' nature run to sample obs
 # (these two files can be the same for perfect model expts)
 # file to sample additive noise.
-truth_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
+truth_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
@@ -67,7 +69,7 @@ spout = sp
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt))
+    models.append(TwoLevel(sp,dt,div2_diff_efold=div2_diff_efold))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
@@ -443,11 +445,17 @@ for ntime in range(nassim):
     uvsprd0a = np.sqrt((uvsprd0*globalmeanwts).sum())
     # print rms wind and temp error & spread (relative to truth for analysis
     # and background), plus innov stats for background.
-    print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
-    (ntime,theterra,thetsprda,theterrb,thetsprdb,\
-           werra,wsprda,werrb,wsprdb,\
-           uverr0a,uvsprd0a,uverr0b,uvsprd0b,\
-           uverr1a,uvsprd1a,uverr1b,uvsprd1b,
+    #print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
+    #(ntime,theterra,thetsprda,theterrb,thetsprdb,\
+    #       werra,wsprda,werrb,wsprdb,\
+    #       uverr0a,uvsprd0a,uverr0b,uvsprd0b,\
+    #       uverr1a,uvsprd1a,uverr1b,uvsprd1b,
+    #       np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
+    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    (ntime,theterrb,thetsprdb,\
+           werrb,wsprdb,\
+           uverr0b,uvsprd0b,\
+           uverr1b,uvsprd1b,\
            np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
 
     # write out data.

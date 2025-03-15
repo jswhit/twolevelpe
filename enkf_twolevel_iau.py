@@ -19,9 +19,10 @@ covlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
 # interval to compute increments (in hours) within IAU window.
 # 0 means 3DIAU, < 0 means no IAU.
-obshr_interval = float(sys.argv[3])
-use_letkf = bool(int(sys.argv[4]))
-#use_letkf = True
+#obshr_interval = float(sys.argv[3])
+obshr_interval = 3.
+#use_letkf = bool(int(sys.argv[4]))
+use_letkf = True
 
 profile = bool(os.getenv('PROFILE')) # turn on profiling?
 if use_letkf:
@@ -29,32 +30,33 @@ if use_letkf:
 else:
     print('# using serial EnSRF...')
 
-nobs = 256 # number of obs to assimilate
+nobs = 1024 # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
 nobsall = nobs
-nanals = 10 # ensemble members
+nanals = 20 # ensemble members
 oberrstdev = 1.0 # ob error in meters
-nassim = 2201 # assimilation times to run
+nassim = 2001 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
               # polynomial for localization.
 
 # grid, time step info
-nlons = 96; nlats = nlons//2  # number of longitudes/latitudes
-ntrunc = 32 # spectral truncation (for alias-free computations)
+nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
+ntrunc = nlons//3 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
-dt = 3600. #  time step in seconds
-rsphere = 6.37122e6 # earth radius
 
 # set random states
 rs1 = np.random.RandomState(seed=42) # reproduce obs
 rs2 = np.random.RandomState(seed=None)  # different ensemble each run
 
 # model nature run to sample initial ensemble and draw additive noise.
-modelclimo_file = 'truth_twolevel_t%s_12h.nc' % ntrunc
+modelclimo_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
+ncm = Dataset(modelclimo_file)
+dt = ncm.dt
+rsphere = ncm.rsphere
 # 'truth' nature run to sample obs
-truth_file = 'truth_twolevel_t32_12h.nc'
+truth_file = 'truth_twolevel_t64_6h.nc'
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
@@ -77,8 +79,8 @@ samegrid = spin.nlons == spout.nlons and spin.nlats == spout.nlats
 if nobs == 1:
     nobsall = 1
     # single ob test.
-    oblonsall = np.array([180.], np.float)
-    oblatsall = np.array([45.], np.float)
+    oblonsall = np.array([180.], np.float32)
+    oblatsall = np.array([45.], np.float32)
 else:
     oblatsall,oblonsall =\
     fibonacci_pts(nobsall,np.degrees(sp.lats[-1]),np.degrees(sp.lats[0]))
@@ -93,13 +95,13 @@ else:
 print('# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev))
 print('# covlocal_scale=%s km, covinflate=%s obshr_interval=%s' %\
 (covlocal_scale/1000., covinflate, obshr_interval))
-thetaobsall = np.empty((nassim,nobsall),np.float)
-utruth = np.empty((nassim,2,nlats,nlons),np.float)
-vtruth = np.empty((nassim,2,nlats,nlons),np.float)
-wtruth = np.empty((nassim,nlats,nlons),np.float)
-thetatruth = np.empty((nassim,nlats,nlons),np.float)
-oberrvar = np.empty(nobs,np.float); oberrvar[:] = oberrstdev**2
-obtimes = np.empty((nassim),np.float)
+thetaobsall = np.empty((nassim,nobsall),np.float32)
+utruth = np.empty((nassim,2,nlats,nlons),np.float32)
+vtruth = np.empty((nassim,2,nlats,nlons),np.float32)
+wtruth = np.empty((nassim,nlats,nlons),np.float32)
+thetatruth = np.empty((nassim,nlats,nlons),np.float32)
+oberrvar = np.empty(nobs,np.float32); oberrvar[:] = oberrstdev**2
+obtimes = np.empty((nassim),np.float32)
 for n in range(nassim):
     # flip latitude direction so lats are increasing (needed for interpolation)
     theta = nct.variables['theta'][n,::-1,:]
@@ -123,10 +125,10 @@ nct.close()
 # create initial ensemble by randomly sampling climatology
 # of forecast model.
 ncm = Dataset(modelclimo_file)
-thetaens = np.empty((nanals,sp.nlats,sp.nlons),np.float)
-wens = np.empty((nanals,sp.nlats,sp.nlons),np.float)
-uens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float)
-vens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float)
+thetaens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
+wens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
+uens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float32)
+vens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float32)
 theta_modelclim = ncm.variables['theta']
 u_modelclim = ncm.variables['u']
 v_modelclim = ncm.variables['v']
@@ -138,15 +140,15 @@ if obshr_interval > 0:
 else:
     nsteps_iau = 0
     nsteps_periau = 0
-vrtspec_fcst = np.empty((nsteps+1,nanals,2,sp.nlm),np.complex)
-divspec_fcst = np.empty((nsteps+1,nanals,2,sp.nlm),np.complex)
-thetaspec_fcst = np.empty((nsteps+1,nanals,sp.nlm),np.complex)
-vrtspec_inc = np.empty((nsteps+1,nanals,2,sp.nlm),np.complex)
-divspec_inc = np.empty((nsteps+1,nanals,2,sp.nlm),np.complex)
-thetaspec_inc = np.empty((nsteps+1,nanals,sp.nlm),np.complex)
-vrtspec_inc1 = np.empty((nsteps_iau+1,nanals,2,sp.nlm),np.complex)
-divspec_inc1 = np.empty((nsteps_iau+1,nanals,2,sp.nlm),np.complex)
-thetaspec_inc1 = np.empty((nsteps_iau+1,nanals,sp.nlm),np.complex)
+vrtspec_fcst = np.empty((nsteps+1,nanals,2,sp.nlm),np.complex128)
+divspec_fcst = np.empty((nsteps+1,nanals,2,sp.nlm),np.complex128)
+thetaspec_fcst = np.empty((nsteps+1,nanals,sp.nlm),np.complex128)
+vrtspec_inc = np.empty((nsteps+1,nanals,2,sp.nlm),np.complex128)
+divspec_inc = np.empty((nsteps+1,nanals,2,sp.nlm),np.complex128)
+thetaspec_inc = np.empty((nsteps+1,nanals,sp.nlm),np.complex128)
+vrtspec_inc1 = np.empty((nsteps_iau+1,nanals,2,sp.nlm),np.complex128)
+divspec_inc1 = np.empty((nsteps_iau+1,nanals,2,sp.nlm),np.complex128)
+thetaspec_inc1 = np.empty((nsteps_iau+1,nanals,sp.nlm),np.complex128)
 indx = rs2.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
 print('# fhassim,nsteps,nsteps_iau = ',fhassim,nsteps,nsteps_iau)
 
@@ -166,12 +168,12 @@ ncm.close()
 
 nvars = 5
 ndim = nvars*sp.nlons*sp.nlats
-xens = np.empty((nanals,ndim),np.float) # empty 1d state vector array
+xens = np.empty((nanals,ndim),np.float32) # empty 1d state vector array
 
 # precompute covariance localization for fixed observation network.
 ndim1 = sp.nlons*sp.nlats
-covlocal1 = np.zeros((nobsall,ndim1),np.float)
-hcovlocal = np.zeros((nobsall,nobsall),np.float)
+covlocal1 = np.zeros((nobsall,ndim1),np.float32)
+hcovlocal = np.zeros((nobsall,nobsall),np.float32)
 modellats = np.degrees(sp.lats)
 modellons = np.degrees(sp.lons)
 modellons,modellats = np.meshgrid(modellons,modellats)
@@ -187,19 +189,19 @@ for nob in range(nobsall):
 covlocal1 = np.where(covlocal1 < 1.e-13, 1.e-13, covlocal1)
 covlocal = np.tile(covlocal1,5)
 # simple constant IAU weights
-wts_iau = np.ones(nsteps,np.float)/(3600.*fhassim)
+wts_iau = np.ones(nsteps,np.float32)/(3600.*fhassim)
 if obshr_interval < 0.:
     # regular enkf (dump all the increment in at
     # one time step in the middle of the window).
     wts_iau[:] = 0.
-    wts_iau[nsteps/2]=1./dt
+    wts_iau[nsteps//2]=1./dt
 
 for ntime in range(nassim):
 
     # compute forward operator.
-    t1 = time.clock()
+    t1 = time.time()
     # ensemble in observation space.
-    hxens = np.empty((nanals,nobs),np.float)
+    hxens = np.empty((nanals,nobs),np.float32)
     if nobs == nobsall:
         oblats = oblatsall; oblons = oblonsall
         thetaobs = thetaobsall[ntime]
@@ -224,9 +226,9 @@ for ntime in range(nassim):
         thetaobs += rs1.normal(scale=oberrstdev,size=nobs) # add ob errors
     for nanal in range(nanals):
         # inverse transform to grid at obs time (center of IAU window).
-        uens[nanal],vens[nanal] = sp.getuv(vrtspec_fcst[nsteps/2,nanal,...],divspec_fcst[nsteps/2,nanal,...])
-        thetaens[nanal] = sp.spectogrd(thetaspec_fcst[nsteps/2,nanal,...])
-        wens[nanal] = models[nanal].dp*sp.spectogrd(divspec_fcst[nsteps/2,nanal,1,:]-divspec_fcst[nsteps/2,nanal,0,:])
+        uens[nanal],vens[nanal] = sp.getuv(vrtspec_fcst[nsteps//2,nanal,...],divspec_fcst[nsteps//2,nanal,...])
+        thetaens[nanal] = sp.spectogrd(thetaspec_fcst[nsteps//2,nanal,...])
+        wens[nanal] = models[nanal].dp*sp.spectogrd(divspec_fcst[nsteps//2,nanal,1,:]-divspec_fcst[nsteps//2,nanal,0,:])
         # forward operator calculation (obs all at center of assim window).
         hxens[nanal] = bilintrp(thetaens[nanal,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
     hxensmean = hxens.mean(axis=0)
@@ -256,16 +258,22 @@ for ntime in range(nassim):
     uvsprd0 = np.sqrt((uvsprd0*globalmeanwts).sum())
     # print rms wind, w and temp error & spread plus
     # plus innov stats for background only (at center of window).
-    print("%s %5i %4.2f %g %g %g %g %g %g %g %g %g %g %g" %\
-    (ntime,int(covlocal_scale/1000),covinflate,theterr,thetsprd,werr,wsprd,uverr0,uvsprd0,uverr1,uvsprd1,\
+    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    (ntime,theterr,thetsprd,werr,wsprd,uverr0,uvsprd0,uverr1,uvsprd1,\
            np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
+    #print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
+    #(ntime,theterra,thetsprda,theterrb,thetsprdb,\
+    #       werra,wsprda,werrb,wsprdb,\
+    #       uverr0a,uvsprd0a,uverr0b,uvsprd0b,\
+    #       uverr1a,uvsprd1a,uverr1b,uvsprd1b,
+    #       np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
     if ntime==nassim-1: break
 
-    t2 = time.clock()
+    t2 = time.time()
     if profile: print('cpu time for forward operator',t2-t1)
 
     # EnKF update
-    t1 = time.clock()
+    t1 = time.time()
     if use_letkf:
         wts = letkf_calcwts(hxens,thetaobs-hxensmean,oberrvar,covlocal_ob=covlocal_tmp)
     nstep_iau = 0
@@ -275,7 +283,7 @@ for ntime in range(nassim):
             calc_inc = nstep % nsteps_periau == 0
         else:
             # constant IAU
-            calc_inc = nstep == nsteps/2
+            calc_inc = nstep == nsteps//2
         if calc_inc:
             #print(nstep,nstep_iau)
             for nanal in range(nanals):
@@ -359,7 +367,7 @@ for ntime in range(nassim):
                 #thetag = sp.spectogrd(thetaspec_inc1[nstep_iau,nanal,...])
                 #print(nstep_iau,nanal,ug.min(),ug.max(),thetag.min(),thetag.max())
             nstep_iau += 1
-    t2 = time.clock()
+    t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
     # linearly interpolate increments to every time in IAU window.
@@ -371,7 +379,7 @@ for ntime in range(nassim):
     else:
         nstep = 0
         for nstep_iau in range(nsteps_iau):
-            for nn in range(nsteps/(nsteps_iau)):
+            for nn in range(nsteps//(nsteps_iau)):
                 itime  = nstep_iau + float(nn*nsteps_iau)/float(nsteps)
                 itimel = int(nstep_iau)
                 alpha = itime - float(itimel)
@@ -402,7 +410,7 @@ for ntime in range(nassim):
     for nanal in range(nanals):
         models[nanal].t = obtimes[ntime]*3600. - 0.5*fhassim*3600.
     for nstep in range(nsteps):
-        if nstep == nsteps/2:
+        if nstep == nsteps//2:
             # check model clock
             if models[0].t/3600. != obtimes[ntime]:
                 raise ValueError('model/ob time mismatch %s vs %s' %\
@@ -418,12 +426,12 @@ for ntime in range(nassim):
 
     # run forecast ensemble from end of IAU interval
     # to beginning of next IAU window (no forcing)
-    t1 = time.clock()
+    t1 = time.time()
     for nstep in range(nsteps):
         vrtspec_fcst[nstep] = vrtspec[:]
         divspec_fcst[nstep] = divspec[:]
         thetaspec_fcst[nstep] = thetaspec[:]
-        if nstep == nsteps/2:
+        if nstep == nsteps//2:
             # check model clock
             if models[0].t/3600. != obtimes[ntime+1]:
                 raise ValueError('model/ob time mismatch %s vs %s' %\
@@ -435,5 +443,5 @@ for ntime in range(nassim):
     divspec_fcst[nsteps] = divspec[:]
     thetaspec_fcst[nsteps] = thetaspec[:]
 
-    t2 = time.clock()
+    t2 = time.time()
     if profile:print('cpu time for ens forecast',t2-t1)
