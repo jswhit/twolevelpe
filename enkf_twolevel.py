@@ -6,7 +6,7 @@ import sys, time
 from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
                         letkf_calcwts,letkf_update
 
-# EnKF cycling for two-level model with mid-level temp obs
+# EnKF cycling for two-level model with mid-level temp and vertical mean wind obs
 
 if len(sys.argv) == 1:
    msg="""
@@ -15,24 +15,26 @@ python enkf_twolevel.py covlocal_scale covinflate
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
-# covariance inflation parameter.
+# covariance inflation parameter (relaxation to prior spread).
 covinflate = float(sys.argv[2])
 
 profile = False # turn on profiling?
-use_letkf = True # use LETKF?
+use_letkf = False # use LETKF?
 if use_letkf:
     print('# using LETKF...')
 else:
     print('# using serial EnSRF...')
 
-nobs = 2056 # number of obs to assimilate
+nobs = 1024 # number of ob locations to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
-nobsall = 5*nobs
+nobsall = 10*nobs
 #nobsall = nobs
 nanals = 20 # ensemble members
-oberrstdev = 1.0 # ob error in K
+wind_obs = True # assimilate vertical mean winds also
+oberrstdev = 1.0 # temp ob error in K
+oberrstdevw = 2.5 # ob err for vertical mean wind in mps
 nassim = 2001 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
                # polynomial for localization.
@@ -42,7 +44,7 @@ nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = nlons//3 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
 #div2_diff_efold = 1.e30
-div2_diff_efold = 1800. # turn of laplacian div damping to damp GW
+div2_diff_efold = 1800. # divergence diffusion to damp GW
 
 # fix random seed for reproducibility.
 np.random.seed(42)
@@ -91,24 +93,37 @@ if nobs == nobsall:
 else:
     nobsall = len(oblatsall)
 
-print('# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev))
-print('# covlocal_scale=%s km, covinflate=%s  %\
-(covlocal_scale/1000., covinflate))
+print('# %s obs to assimilate (out of %s) with ob err stdev = (%s, %s)' % (nobs,nobsall,oberrstdev,oberrstdevw))
+print('# covlocal_scale=%s km, covinflate=%s,  wind_obs=%s' %\
+(covlocal_scale/1000., covinflate, wind_obs))
 thetaobsall = np.empty((nassim,nobsall),np.float32)
+if wind_obs:
+    uobsall = np.empty((nassim,nobsall),np.float32)
+    vobsall = np.empty((nassim,nobsall),np.float32)
 utruth = np.empty((nassim,2,nlats,nlons),np.float32)
 vtruth = np.empty((nassim,2,nlats,nlons),np.float32)
 wtruth = np.empty((nassim,nlats,nlons),np.float32)
 thetatruth = np.empty((nassim,nlats,nlons),np.float32)
-oberrvar = np.empty(nobs,np.float32); oberrvar[:] = oberrstdev**2
+if wind_obs:
+    oberrvar = np.empty(3*nobs,np.float32); oberrvar[:nobs] = oberrstdev**2; oberrvar[nobs:] = oberrstdevw**2
+else:
+    oberrvar = np.empty(nobs,np.float32); oberrvar[:] = oberrstdev**2
 obtimes = np.empty((nassim),np.float32)
 for n in range(nassim):
     # flip latitude direction so lats are increasing (needed for interpolation)
     vrtspec_tmp,divspec_tmp =\
     spin.getvrtdivspec(nct.variables['u'][n],nct.variables['v'][n])
+    um = (nct.variables['u'][n]).mean(axis=0)
+    vm = (nct.variables['v'][n]).mean(axis=0)
     w = models[0].dp*spin.spectogrd(divspec_tmp[1]-divspec_tmp[0])
     obtimes[n] = nct.variables['t'][n]
     thetaobsall[n] =\
     bilintrp(nct.variables['theta'][n,::-1,:],lons,lats[::-1],oblonsall,oblatsall)
+    if wind_obs:
+        uobsall[n] =\
+        bilintrp(um[::-1,:],lons,lats[::-1],oblonsall,oblatsall)
+        vobsall[n] =\
+        bilintrp(vm[::-1,:],lons,lats[::-1],oblonsall,oblatsall)
     if samegrid:
        utruth[n] = nct.variables['u'][n]
        vtruth[n] = nct.variables['v'][n]
@@ -282,10 +297,16 @@ for ntime in range(nassim):
     # compute forward operator.
     t1 = time.time()
     # ensemble in observation space.
-    hxens = np.empty((nanals,nobs),np.float32)
+    if wind_obs:
+        hxens = np.empty((nanals,3*nobs),np.float32)
+    else:
+        hxens = np.empty((nanals,nobs),np.float32)
     if nobs == nobsall:
         oblats = oblatsall; oblons = oblonsall
         thetaobs = thetaobsall[ntime]
+        if wind_obs:
+            uobs = uobsall[ntime]
+            vobs = vobsall[ntime]
         obindx = np.arange(nobs)
         if use_letkf:
             covlocal_tmp = covlocal1
@@ -296,6 +317,9 @@ for ntime in range(nassim):
         obindx = np.random.choice(np.arange(nobsall),size=nobs,replace=False)
         oblats = oblatsall[obindx]; oblons = oblonsall[obindx]
         thetaobs = np.ascontiguousarray(thetaobsall[ntime,obindx])
+        if wind_obs:
+            uobs = np.ascontiguousarray(uobsall[ntime,obindx])
+            vobs = np.ascontiguousarray(vobsall[ntime,obindx])
         if use_letkf:
             covlocal_tmp = np.ascontiguousarray(covlocal1[obindx,:])
         else:
@@ -303,8 +327,7 @@ for ntime in range(nassim):
             hcovlocal_tmp = np.ascontiguousarray(hcovlocal[obindx,:][:,obindx])
     else:
         raise ValueError('nobsall must be >= nobs')
-    if oberrstdev > 0.: # add observation error
-        thetaobs += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
+    thetaobs += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
     for nanal in range(nanals):
         # inverse transform to grid.
         uens[nanal],vens[nanal] = sp.getuv(vrtspec[nanal],divspec[nanal])
@@ -313,11 +336,16 @@ for ntime in range(nassim):
         models[nanal].dp*sp.spectogrd(divspec[nanal,1,...]-divspec[nanal,0,...])
         # forward operator calculation.
         theta = thetaens[nanal,::-1,:]
-        hxens[nanal] = bilintrp(theta,np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
+        hxens[nanal,:nobs] = bilintrp(theta,np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
+        if wind_obs:
+            um = (uens[nanal,:,::-1,:]).mean(axis=0)
+            vm = (vens[nanal,:,::-1,:]).mean(axis=0)
+            hxens[nanal,nobs:2*nobs] = bilintrp(um,np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
+            hxens[nanal,2*nobs:] = bilintrp(vm,np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
     hxensmean = hxens.mean(axis=0)
-    obfits = ((thetaobs-hxensmean)**2).sum(axis=0)/(nobs-1)
-    obbias = (thetaobs-hxensmean).mean(axis=0)
-    obsprd = (((hxens-hxensmean)**2).sum(axis=0)/(nanals-1)).mean()
+    obfits = ((thetaobs-hxensmean[:nobs])**2).sum(axis=0)/(nobs-1)
+    obbias = (thetaobs-hxensmean[:nobs]).mean(axis=0)
+    obsprd = (((hxens[:,:nobs]-hxensmean[:nobs])**2).sum(axis=0)/(nanals-1)).mean()
     uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
     thetensmean = thetaens.mean(axis=0)
     wensmean = wens.mean(axis=0)
@@ -379,18 +407,32 @@ for ntime in range(nassim):
     fsprd = (xprime**2).sum(axis=0)/(nanals-1)
     # update state vector.
     if use_letkf:
-        wts = letkf_calcwts(hxens,thetaobs-hxensmean,oberrvar,covlocal_ob=covlocal_tmp)
+        ominusf = np.empty_like(oberrvar)
+        ominusf[:nobs] = thetaobs-hxensmean[:nobs]
+        if wind_obs:
+            ominusf[nobs:2*nobs] = uobs-hxensmean[nobs:2*nobs]
+            ominusf[2*nobs:] = vobs-hxensmean[2*nobs:]
+            wts = letkf_calcwts(hxens,ominusf,oberrvar,covlocal_ob=np.vstack((covlocal_tmp,covlocal_tmp,covlocal_tmp)))
+        else:
+            wts = letkf_calcwts(hxens,ominusf,oberrvar,covlocal_ob=covlocal_tmp)
         xens = letkf_update(xens,wts)
     else:
-        xens = serial_ensrf(xens,hxens,thetaobs,oberrvar,covlocal_tmp,hcovlocal_tmp)
+        obs = np.empty_like(oberrvar)
+        obs[:nobs] = thetaobs[:nobs]
+        if wind_obs:
+            obs[nobs:2*nobs] = uobs
+            obs[2*nobs:]     = vobs
+            xens = serial_ensrf(xens,hxens,obs,oberrvar,np.vstack((covlocal_tmp,covlocal_tmp,covlocal_tmp)),\
+                                np.block([[hcovlocal_tmp,hcovlocal_tmp,hcovlocal_tmp],\
+                                          [hcovlocal_tmp,hcovlocal_tmp,hcovlocal_tmp],\
+                                          [hcovlocal_tmp,hcovlocal_tmp,hcovlocal_tmp]]))
+        else:
+            xens = serial_ensrf(xens,hxens,obs,oberrvar,covlocal_tmp,hcovlocal_tmp)
     xmean = xens.mean(axis=0); xprime = xens-xmean
     # analysis spread
     asprd = (xprime**2).sum(axis=0)/(nanals-1)
     # posterior inflation
     # relaxation to prior spread (Whitaker and Hamill)
-    # relax variance
-    #inflation_factor = np.sqrt(1.+covinflate*(fsprd-asprd)/asprd)
-    # relax st. deviation
     inflation_factor = 1.+covinflate*(np.sqrt(fsprd)-np.sqrt(asprd))/np.sqrt(asprd)
     xprime = xprime*inflation_factor
     xens = xmean + xprime
