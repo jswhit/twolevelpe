@@ -6,7 +6,7 @@ import sys, time
 from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
                         letkf_calcwts,letkf_update
 
-# EnKF cycling for two-level model with mid-level temp obs
+# EnKF cycling for two-level model with mid-level temp and vertical mean wind obs
 
 if len(sys.argv) == 1:
    msg="""
@@ -15,7 +15,7 @@ python enkf_twolevel.py covlocal_scale covinflate
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
-# covariance inflation parameter.
+# covariance inflation parameter (relaxation to prior spread).
 covinflate = float(sys.argv[2])
 
 profile = False # turn on profiling?
@@ -25,7 +25,7 @@ if use_letkf:
 else:
     print('# using serial EnSRF...')
 
-nobs = 1024 # number of obs to assimilate
+nobs = 1024 # number of ob locations to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
@@ -327,8 +327,7 @@ for ntime in range(nassim):
             hcovlocal_tmp = np.ascontiguousarray(hcovlocal[obindx,:][:,obindx])
     else:
         raise ValueError('nobsall must be >= nobs')
-    if oberrstdev > 0.: # add observation error
-        thetaobs += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
+    thetaobs += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
     for nanal in range(nanals):
         # inverse transform to grid.
         uens[nanal],vens[nanal] = sp.getuv(vrtspec[nanal],divspec[nanal])
