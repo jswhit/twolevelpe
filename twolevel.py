@@ -194,7 +194,7 @@ if __name__ == "__main__":
     # create model instance using default parameters.
     #div2_diff_efold = 1.e30
     div2_diff_efold = 1800.
-    moistfact = 0.9
+    moistfact = 0.0
     umax = 50.
     model = TwoLevel(sp,dt,jetexp=0,umax=umax,tdrag=2.*86400,tdiab=14.*86400.,div2_diff_efold=div2_diff_efold,moistfact=moistfact)
     #model = TwoLevel(sp,dt)
