@@ -141,6 +141,7 @@ def gaspcohn(r,gaussian=False):
         taper = np.exp(-(r**2/0.15))
     else:
         rr = 2.*r
+        rr = rr.clip(min=np.finfo(rr.dtype).eps)
         taper = np.where(r<=0.5, \
                 ( ( ( -0.25*rr +0.5 )*rr +0.625 )*rr -5.0/3.0 )*rr**2 + 1.0,\
                 np.zeros(r.shape,r.dtype))

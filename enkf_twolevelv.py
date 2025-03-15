@@ -93,7 +93,7 @@ if nobs == nobsall:
 else:
     nobsall = len(oblatsall)
 
-print('# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev))
+print('# %s obs to assimilate (out of %s) with ob err stdev = (%s, %s)' % (nobs,nobsall,oberrstdev,oberrstdevw))
 print('# covlocal_scale=%s km, covinflate=%s,  wind_obs=%s' %\
 (covlocal_scale/1000., covinflate, wind_obs))
 thetaobsall = np.empty((nassim,nobsall),np.float32)
