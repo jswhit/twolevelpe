@@ -136,7 +136,6 @@ wens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
 uens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float32)
 vens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float32)
 thetinf = np.empty((sp.nlats,sp.nlons),np.float32)
-winf = np.empty((sp.nlats,sp.nlons),np.float32)
 uinf = np.empty((2,sp.nlats,sp.nlons),np.float32)
 vinf = np.empty((2,sp.nlats,sp.nlons),np.float32)
 theta_modelclim = ncm.variables['theta']
@@ -215,6 +214,8 @@ if savedata is not None:
     v_ensb.units = 'meters per second'
     thet_ensb = ncout.createVariable('thetensb',np.float32,('t','ens','lat','lon'),zlib=False)
     thet_ensb.units = 'K'
+    w_ensb = ncout.createVariable('wensb',np.float32,('t','ens','lat','lon'),zlib=False)
+    w_ensb.units = 'K'
     u_ensmeanb = ncout.createVariable('uensmeanb',np.float32,('t','level','lat','lon'),zlib=False)
     u_ensmeanb.units = 'meters per second'
     v_ensmeanb = ncout.createVariable('vensmeanb',np.float32,('t','level','lat','lon'),zlib=False)
@@ -229,6 +230,8 @@ if savedata is not None:
     v_ensa.units = 'meters per second'
     thet_ensa = ncout.createVariable('thetensa',np.float32,('t','ens','lat','lon'),zlib=False)
     thet_ensa.units = 'K'
+    w_ensa = ncout.createVariable('wensa',np.float32,('t','ens','lat','lon'),zlib=False)
+    w_ensa.units = 'K'
     u_ensmeana = ncout.createVariable('uensmeana',np.float32,('t','level','lat','lon'),zlib=False)
     u_ensmeana.units = 'meters per second'
     v_ensmeana = ncout.createVariable('vensmeana',np.float32,('t','level','lat','lon'),zlib=False)
@@ -264,7 +267,6 @@ if savedata is not None:
     uinflation = ncout.createVariable('uinflation',np.float32,('t','level','lat','lon'),zlib=False)
     vinflation = ncout.createVariable('vinflation',np.float32,('t','level','lat','lon'),zlib=False)
     thetinflation = ncout.createVariable('thetinflation',np.float32,('t','lat','lon'),zlib=False)
-    winflation = ncout.createVariable('winflation',np.float32,('t','lat','lon'),zlib=False)
     times = ncout.createVariable('t',np.float32,('t',))
     lats = ncout.createVariable('lat',np.float32,('lat',))
     lats.units = 'degrees north'
@@ -350,7 +352,7 @@ for ntime in range(nassim):
     if savedata:
         u_ensb[nout] = uens
         v_ensb[nout] = vens
-        thet_ensb[nout] = thetens
+        thet_ensb[nout] = thetaens
         w_ensb[nout] = wens
         u_ensmeanb[nout] = uensmean
         v_ensmeanb[nout] = vensmean
@@ -435,7 +437,6 @@ for ntime in range(nassim):
     vinf[0,...] = infsplit[2].reshape((sp.nlats,sp.nlons))
     vinf[1,...] = infsplit[3].reshape((sp.nlats,sp.nlons))
     thetinf    = infsplit[4].reshape((sp.nlats,sp.nlons))
-    winf       = infsplit[5].reshape((sp.nlats,sp.nlons))
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
@@ -479,7 +480,7 @@ for ntime in range(nassim):
     if savedata:
         u_ensa[nout] = uens
         v_ensa[nout] = vens
-        thet_ensa[nout] = thetens
+        thet_ensa[nout] = thetaens
         w_ensa[nout] = wens
         u_ensmeana[nout] = uensmean
         v_ensmeana[nout] = vensmean
@@ -494,7 +495,6 @@ for ntime in range(nassim):
         thet_truth[nout] = thetatruth[ntime]
         w_truth[nout] = wtruth[ntime]
         thetinflation[nout] = thetinf
-        winflation[nout] = winf
         uinflation[nout] = uinf
         vinflation[nout] = vinf
         times = obtimes[ntime]
