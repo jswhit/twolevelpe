@@ -10,19 +10,13 @@ from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
 
 if len(sys.argv) == 1:
    msg="""
-python enkf_twolevel.py covlocal_scale covinflate1 (covinflate2)
+python enkf_twolevel.py covlocal_scale covinflate
    """
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
 # covariance inflation parameter.
-covinflate1 = float(sys.argv[2])
-covinflate2 = 0.
-# if covinflate2 not specified, RTPS inflation used.
-# if covinflate2 given, use Hodyss & Campbell inflation
-# with a = covinflate1, b = covinflate2
-if len(sys.argv) > 3:
-    covinflate2 = float(sys.argv[3])
+covinflate = float(sys.argv[2])
 
 profile = False # turn on profiling?
 use_letkf = True # use LETKF?
@@ -31,24 +25,24 @@ if use_letkf:
 else:
     print('# using serial EnSRF...')
 
-nobs = 1024 # number of obs to assimilate
+nobs = 2056 # number of obs to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
-nobsall = 10*nobs
+nobsall = 5*nobs
 #nobsall = nobs
 nanals = 20 # ensemble members
 oberrstdev = 1.0 # ob error in K
 nassim = 2001 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
-              # polynomial for localization.
+               # polynomial for localization.
 
 # grid, time step info
 nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = nlons//3 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
 #div2_diff_efold = 1.e30
-div2_diff_efold = 1800.
+div2_diff_efold = 1800. # turn of laplacian div damping to damp GW
 
 # fix random seed for reproducibility.
 np.random.seed(42)
@@ -98,8 +92,8 @@ else:
     nobsall = len(oblatsall)
 
 print('# %s obs to assimilate (out of %s) with ob err stdev = %s' % (nobs,nobsall,oberrstdev))
-print('# covlocal_scale=%s km, covinflate1=%s covinflate2=%s' %\
-(covlocal_scale/1000., covinflate1, covinflate2))
+print('# covlocal_scale=%s km, covinflate=%s  %\
+(covlocal_scale/1000., covinflate))
 thetaobsall = np.empty((nassim,nobsall),np.float32)
 utruth = np.empty((nassim,2,nlats,nlons),np.float32)
 vtruth = np.empty((nassim,2,nlats,nlons),np.float32)
@@ -192,8 +186,7 @@ if savedata is not None:
     ncout.ntrunc = ntrunc
     ncout.dt = dt
     ncout.nassim = nassim
-    ncout.covinflate1 = covinflate1
-    ncout.covinflate2 = covinflate2
+    ncout.covinflate = covinflate
     ncout.covlocal_scale = covlocal_scale
     ncout.truth_file = truth_file
     ncout.modelclimo_file = modelclimo_file
@@ -394,17 +387,11 @@ for ntime in range(nassim):
     # analysis spread
     asprd = (xprime**2).sum(axis=0)/(nanals-1)
     # posterior inflation
-    if covinflate2 == 0:
-        # relaxation to prior spread (Whitaker and Hamill)
-        # relax variance
-        #inflation_factor = np.sqrt(1.+covinflate1*(fsprd-asprd)/asprd)
-        # relax st. deviation
-        inflation_factor = 1.+covinflate1*(np.sqrt(fsprd)-np.sqrt(asprd))/np.sqrt(asprd)
-    else:
-        # Hodyss and Campbell
-        inc = xmean - xmean_b
-        inflation_factor = np.sqrt(covinflate1 + \
-        (asprd/fsprd**2)*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1))))
+    # relaxation to prior spread (Whitaker and Hamill)
+    # relax variance
+    #inflation_factor = np.sqrt(1.+covinflate*(fsprd-asprd)/asprd)
+    # relax st. deviation
+    inflation_factor = 1.+covinflate*(np.sqrt(fsprd)-np.sqrt(asprd))/np.sqrt(asprd)
     xprime = xprime*inflation_factor
     xens = xmean + xprime
     # 1d vector back to 3d arrays.
