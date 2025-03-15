@@ -58,7 +58,7 @@ class TwoLevel(object):
         indxn = sp.degree.astype(np.float32)
         totwavenum = indxn*(indxn+1.0)
         self.hyperdiff = -(1./efold)*(totwavenum/totwavenum[-1])**(ndiss/2)
-        self.div2_diff_efold = div2_diff_efold
+        self.div2_diff_efold = div2_diff_efold # laplacian div diffusion
         if div2_diff_efold < 1.e10:
             # extra laplacian diffusion of divergence to damp gravity waves
             self.divlapdiff = -(1./self.div2_diff_efold)*(totwavenum/totwavenum[-1])
