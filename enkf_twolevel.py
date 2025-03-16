@@ -44,7 +44,7 @@ nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = nlons//3 # spectral truncation (for alias-free computations)
 gridtype = 'gaussian'
 #div2_diff_efold = 1.e30
-div2_diff_efold = 1800. # divergence diffusion to damp GW
+div2_diff_efold = 3600. # divergence diffusion to damp GW
 
 # fix random seed for reproducibility.
 np.random.seed(42)
