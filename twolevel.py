@@ -191,14 +191,13 @@ if __name__ == "__main__":
     rsphere = 6.37122e6 # earth radius
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
-    # create model instance using default parameters.
+    # create model instance.
     #div2_diff_efold = 1.e30
-    div2_diff_efold = 1800.
+    div2_diff_efold = 3600.
     moistfact = 0.0
+    jetexp = 2
     umax = 50.
-    model = TwoLevel(sp,dt,jetexp=0,umax=umax,tdrag=2.*86400,tdiab=14.*86400.,div2_diff_efold=div2_diff_efold,moistfact=moistfact)
-    #model = TwoLevel(sp,dt)
-
+    model = TwoLevel(sp,dt,jetexp=jetexp,umax=umax,tdrag=2.*86400,tdiab=14.*86400.,div2_diff_efold=div2_diff_efold,moistfact=moistfact)
     psipert = np.zeros((2,model.nlat,model.nlon),np.float32)
     psipert[1,:,:] = 5.e6*np.sin((model.lons-np.pi))**12*np.sin(2.*model.lats)**12
     psipert = np.where(model.lons[np.newaxis,:,:] > 0., 0, psipert)
