@@ -16,7 +16,11 @@ python enkf_twolevel.py covlocal_scale covinflate
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
 # covariance inflation parameter (relaxation to prior spread).
-covinflate = float(sys.argv[2])
+covinflate1 = float(sys.argv[2])
+if len(sys.argv) > 3:
+    covinflate2 = float(sys.argv[3])
+else: 
+    covinflate2 = -1
 
 profile = False # turn on profiling?
 use_letkf = False # use LETKF?
@@ -35,7 +39,7 @@ nanals = 20 # ensemble members
 wind_obs = True # assimilate vertical mean winds also
 oberrstdev = 1.0 # temp ob error in K
 oberrstdevw = 2.5 # ob err for vertical mean wind in mps
-nassim = 1101 # assimilation times to run
+nassim = 2101 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
                # polynomial for localization.
 
@@ -94,8 +98,8 @@ else:
     nobsall = len(oblatsall)
 
 print('# %s obs to assimilate (out of %s) with ob err stdev = (%s, %s)' % (nobs,nobsall,oberrstdev,oberrstdevw))
-print('# covlocal_scale=%s km, covinflate=%s,  wind_obs=%s' %\
-(covlocal_scale/1000., covinflate, wind_obs))
+print('# covlocal_scale=%s km, covinflate1=%s, covinflate2=%s,  wind_obs=%s' %\
+(covlocal_scale/1000., covinflate1, covinflate2, wind_obs))
 thetaobsall = np.empty((nassim,nobsall),np.float32)
 if wind_obs:
     uobsall = np.empty((nassim,nobsall),np.float32)
@@ -191,8 +195,8 @@ fhassim = obtimes[1]-obtimes[0] # assim interval  (assumed constant)
 nsteps = int(fhassim*3600/models[0].dt) # time steps in assim interval
 print('# fhassim,nsteps = ',fhassim,nsteps)
 
-#savedata = None
-savedata = 'enkf_twolevel_test.nc'
+savedata = None
+#savedata = 'enkf_twolevel_test.nc'
 nout = 0
 if savedata is not None:
     ncout = Dataset(savedata,'w',format='NETCDF4_CLASSIC')
@@ -201,7 +205,8 @@ if savedata is not None:
     ncout.ntrunc = ntrunc
     ncout.dt = dt
     ncout.nassim = nassim
-    ncout.covinflate = covinflate
+    ncout.covinflate1 = covinflate1
+    ncout.covinflate2 = covinflate2
     ncout.covlocal_scale = covlocal_scale
     ncout.truth_file = truth_file
     ncout.modelclimo_file = modelclimo_file
@@ -447,8 +452,14 @@ for ntime in range(nassim):
     # analysis spread
     asprd = (xprime**2).sum(axis=0)/(nanals-1)
     # posterior inflation
-    # relaxation to prior spread (Whitaker and Hamill)
-    inflation_factor = 1.+covinflate*(np.sqrt(fsprd)-np.sqrt(asprd))/np.sqrt(asprd)
+    if covinflate2 < 0:
+        # relaxation to prior spread (Whitaker and Hamill, https://doi.org/10.1175/MWR-D-11-00276.1)
+        inflation_factor = 1.+covinflate1*(np.sqrt(fsprd)-np.sqrt(asprd))/np.sqrt(asprd)
+    else:
+        # Hodyss and Campbell inflation (https://doi.org/10.1175/MWR-D-15-0329.1)
+        inc = xmean - xmean_b
+        inflation_factor = np.sqrt(covinflate1 + \
+            (asprd/fsprd**2)*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1))))
     xprime = xprime*inflation_factor
     xens = xmean + xprime
     # 1d vector back to 3d arrays.
