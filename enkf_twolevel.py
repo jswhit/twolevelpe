@@ -15,15 +15,15 @@ python enkf_twolevel.py covlocal_scale covinflate
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
-# covariance inflation parameter (relaxation to prior spread).
+# covariance inflation parameter (relaxation to prior spread if only one parameter given).
 covinflate1 = float(sys.argv[2])
 if len(sys.argv) > 3:
-    covinflate2 = float(sys.argv[3])
+    covinflate2 = float(sys.argv[3]) # Hodyss and Campbell inflation (2 parameters)
 else: 
-    covinflate2 = -1
+    covinflate2 = -1 # if -1, it's RTPS inflation
 
 profile = False # turn on profiling?
-use_letkf = False # use LETKF?
+use_letkf = True # use LETKF?
 if use_letkf:
     print('# using LETKF...')
 else:
