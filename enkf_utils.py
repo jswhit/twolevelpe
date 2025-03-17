@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import lapack
 # function definitions.
 
 def addcyclic_1d(data,cyclic_width=360.):
@@ -181,20 +182,24 @@ def letkf_calcwts(hxens,ominusf,oberrs,covlocal_ob=None):
     nanals, nobs = hxens.shape
     hxmean = hxens.mean(axis=0); hxprime = hxens-hxmean
     def calcwts(hxprime,Rinv,ominusf):
-        YbRinv = np.dot(hxprime, Rinv)
-        pa = (nanals-1)*np.eye(nanals) + np.dot(YbRinv, hxprime.T)
-        evals, eigs = np.linalg.eigh(pa)
-        painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1./evals))), eigs.T)
-        tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
-        return np.sqrt(nanals-1)*painv + tmp[:,np.newaxis]
+        YbRinv = hxprime*Rinv
+        YbSqrtRinv = hxprime*np.sqrt(Rinv)
+        pa = (nanals-1)*np.eye(nanals) + np.dot(YbSqrtRinv, YbSqrtRinv.T)
+        #evals, eigs = np.linalg.eigh(pa)
+        evals, eigs, info = lapack.dsyevd(pa)
+        pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1./evals))), eigs.T)
+        tmp = np.dot(np.dot(np.dot(pasqrtinv, pasqrtinv.T), YbRinv), ominusf)
+        wts = np.sqrt(nanals-1)*pasqrtinv + tmp[:,np.newaxis]
+        return wts
     if covlocal_ob is not None: # LETKF (horizontal localization)
         ndim1 = covlocal_ob.shape[1]
         wts = np.empty((ndim1,nanals,nanals),np.float32)
         for n in range(ndim1):
-            Rinv = np.diag(covlocal_ob[:,n]/oberrs)
-            wts[n] = calcwts(hxprime,Rinv,ominusf)
+            #Rinv = np.diag(covlocal_ob[:,n]/oberrs)
+            mask = covlocal_ob[:,n] > 1.e-7
+            Rinv = covlocal_ob[mask,n]/oberrs[mask]
+            wts[n] = calcwts(hxprime[:,mask],Rinv,ominusf[mask])
     else: # ETKF (no localization)
-        wts = np.empty((nanals,nanals),np.float32)
         Rinv = np.diag(1./oberrs)
         wts = calcwts(hxprime,Rinv,ominusf)
     return wts
