@@ -195,13 +195,47 @@ def letkf_calcwts(hxens,ominusf,oberrs,covlocal_ob=None):
         ndim1 = covlocal_ob.shape[1]
         wts = np.empty((ndim1,nanals,nanals),np.float32)
         for n in range(ndim1):
-            #Rinv = np.diag(covlocal_ob[:,n]/oberrs)
             mask = covlocal_ob[:,n] > 1.e-7
             Rinv = covlocal_ob[mask,n]/oberrs[mask]
             wts[n] = calcwts(hxprime[:,mask],Rinv,ominusf[mask])
     else: # ETKF (no localization)
         Rinv = np.diag(1./oberrs)
         wts = calcwts(hxprime,Rinv,ominusf)
+    return wts
+
+def letkf_calcwts_corr(hxens,xens,ominusf,oberrs,corr_power=0,covlocal_ob=None):
+    """calculate analysis weights with local ensemble transform kalman filter
+    (assuming no vertical localization, using observation error localization
+    in the horizontal)"""
+    nanals, nobs = hxens.shape
+    hxmean = hxens.mean(axis=0); hxprime = hxens-hxmean
+    xmean = xens.mean(axis=0); xprime = xens-xmean
+    normfact = 1./(nanals-1)
+    def calcwts(hxprime,Rinv,ominusf):
+        YbRinv = hxprime*Rinv
+        YbSqrtRinv = hxprime*np.sqrt(Rinv)
+        pa = (nanals-1)*np.eye(nanals) + np.dot(YbSqrtRinv, YbSqrtRinv.T)
+        evals, eigs, info = lapack.dsyevd(pa)
+        pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1./evals))), eigs.T)
+        tmp = np.dot(np.dot(np.dot(pasqrtinv, pasqrtinv.T), YbRinv), ominusf)
+        wts = np.sqrt(nanals-1)*pasqrtinv + tmp[:,np.newaxis]
+        return wts
+    ndim1 = covlocal_ob.shape[1]; nvars = 5
+    wts = np.empty((nvars,ndim1,nanals,nanals),np.float32)
+    for n in range(ndim1):
+        for nv in range(nvars):
+            mask = covlocal_ob[:,n] > 1.e-7
+            hxprime_local = hxprime[:,mask]
+            if corr_power > 0:
+                varobs = (hxprime_local**2).sum(axis=0)*normfact
+                varstate =  (xprime[:,nvars*n+nv]**2).sum(axis=0)*normfact
+                pbht = (xprime[:,nvars*n+nv,np.newaxis]*hxprime_local).sum(axis=0)*normfact
+                corr = np.abs(pbht/np.sqrt(varobs[np.newaxis,:]*varstate)).squeeze()
+                #print(nv,corr.shape, corr.min(), corr.max())
+                Rinv = (corr**corr_power)*covlocal_ob[mask,n]/oberrs[mask]
+            else:
+                Rinv = covlocal_ob[mask,n]/oberrs[mask]
+            wts[nv,n] = calcwts(hxprime_local,Rinv,ominusf[mask])
     return wts
 
 def letkf_update(xens,wts):
@@ -216,4 +250,16 @@ def letkf_update(xens,wts):
         for n in range(ndim1):
             xens[:,nvars*n:nvars*(n+1)] = xmean[nvars*n:nvars*(n+1)] +\
             np.dot(wts[n].T, xprime[:,nvars*n:nvars*(n+1)])
+    return xens
+
+def letkf_update_corr(xens,wts):
+    """calculate increment (analysis - forecast) to state with LETKF
+    using precomputed analysis weights (assuming no vertical localization)."""
+    nanals, ndim = xens.shape
+    xmean = xens.mean(axis=0); xprime = xens-xmean
+    nvars = wts.shape[0]; ndim1 = wts.shape[1]
+    for n in range(ndim1):
+        for nv in range(nvars):
+            xens[:,nvars*n+nv] = xmean[nvars*n+nv] +\
+            np.dot(wts[nv,n].T, xprime[:,nvars*n+nv])
     return xens
