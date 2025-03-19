@@ -1,14 +1,19 @@
-import sys, numpy
-data = numpy.genfromtxt(sys.argv[1],invalid_raise=False)
+import numpy as np
+import sys
+# generate time mean statistics from standard output of sqg_enkf.py
+file = sys.argv[1]
+data = np.loadtxt(file)
 nskip = int(sys.argv[2])
 if len(sys.argv) > 3:
-    nmax = int(sys.argv[3])+1
+    nend = int(sys.argv[3])
 else:
-    nmax = data.shape[0]
-data = data[nskip:nmax]
-ntimes = data[-1,0]-data[0,0]
-out = data[:,1:].mean(axis=0)
-strout = '%s ' % (int(ntimes),)
-for item in out:
-    strout += '%6.4f ' % (item,)
-print strout
+    nend = -1
+if nend == -1:
+    data2 = data[nskip:,:]
+else:
+    data2 = data[nskip:nend,:]
+data_mean = data2.mean(axis=0)
+data_mean[0] = data2.shape[0]
+print_list = ''.join(['%g ' % x for x in data_mean])
+print(print_list)
+
