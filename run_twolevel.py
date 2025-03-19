@@ -26,7 +26,7 @@ rsphere = 6.37122e6 # earth radius
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
 nstart = int((200.*86400.)/dt) # end of spinup period
-nmax = int((1200.*86400.)/dt) # total duration of run
+nmax = int((12200.*86400.)/dt) # total duration of run
 
 # create model instance
 model = TwoLevel(sp,dt,jetexp=4,umax=50,tdrag=2.*86400,tdiab=14.*86400.)
