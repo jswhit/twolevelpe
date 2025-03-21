@@ -94,10 +94,10 @@ class Spharmt(object):
         self.rsphere = rsphere
         self.lap = self.lap/rsphere**2
         self.invlap = self.invlap*rsphere**2
-    def smooth(self,data,smoothfact):
+    def smooth(self,data,n0,r=1):
         """smooth with gaussian spectral smoother"""
         dataspec = self.grdtospec(data)
-        smoothspec = np.exp(self.rsphere**2*self.lap/(smoothfact*(smoothfact+1.)))
+        smoothspec = np.exp(self.rsphere**2*self.lap/(n0*(n0+1.))**r)
         return self.spectogrd(smoothspec*dataspec)
     def grdtospec(self,data):
         """compute spectral coefficients from gridded data"""

@@ -69,7 +69,8 @@ truth_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 spout = sp
 # gaussian exponential smoothing for scale separation.
-smoothspec = np.exp(sp.lap*sp.rsphere**2/(smoothfact*(smoothfact+1.)))
+exponent = 3
+smoothspec = np.exp( (sp.lap*sp.rsphere**2/(smoothfact*(smoothfact+1)) )**exponent)
 
 models = []
 for nanal in range(nanals):
@@ -327,6 +328,10 @@ for ntime in range(nassim):
         # inverse transform to grid.
         uensbc[nanal],vensbc[nanal] = sp.getuv(vrtbcspec[nanal],divbcspec[nanal])
         uensbt[nanal],vensbt[nanal] = sp.getuv(vrtbtspec[nanal],divbtspec[nanal])
+        uens[nanal,0,...] = uensbt[nanal] - uensbc[nanal]
+        uens[nanal,1,...] = uensbc[nanal] + uensbt[nanal]
+        vens[nanal,0,...] = vensbt[nanal] - vensbc[nanal]
+        vens[nanal,1,...] = vensbc[nanal] + vensbt[nanal]
         thetaens[nanal] = sp.spectogrd(thetaspec[nanal])
         wens[nanal] =\
         models[nanal].dp*sp.spectogrd(2*divbcspec[nanal,...])
@@ -339,6 +344,7 @@ for ntime in range(nassim):
     obfits = ((thetaobs-hxensmean[:nobs])**2).sum(axis=0)/(nobs-1)
     obbias = (thetaobs-hxensmean[:nobs]).mean(axis=0)
     obsprd = (((hxens[:,:nobs]-hxensmean[:nobs])**2).sum(axis=0)/(nanals-1)).mean()
+    uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
     uensbcmean = uensbc.mean(axis=0); vensbcmean = vensbc.mean(axis=0)
     uensbtmean = uensbt.mean(axis=0); vensbtmean = vensbt.mean(axis=0)
     thetensmean = thetaens.mean(axis=0)
@@ -363,6 +369,18 @@ for ntime in range(nassim):
     uvsprdbt = 0.5*(usprdbt+vsprdbt)
     uvsprdbcb = np.sqrt((uvsprdbc*globalmeanwts).sum())
     uvsprdbtb = np.sqrt((uvsprdbt*globalmeanwts).sum())
+
+    uverr0 = 0.5*((utruth[ntime,0,:,:]-uensmean[0])**2+(vtruth[ntime,0,:,:]-vensmean[0])**2)
+    uverr0b = np.sqrt((uverr0*globalmeanwts).sum())
+    uverr1 = 0.5*((utruth[ntime,1,:,:]-uensmean[1])**2+(vtruth[ntime,1,:,:]-vensmean[1])**2)
+    uverr1b = np.sqrt((uverr1*globalmeanwts).sum())
+    usprd = ((uens-uensmean)**2).sum(axis=0)/(nanals-1)
+    vsprd = ((vens-vensmean)**2).sum(axis=0)/(nanals-1)
+    uvsprd0 = 0.5*(usprd[0]+vsprd[0])
+    uvsprd0b = np.sqrt((uvsprd0*globalmeanwts).sum())
+    uvsprd1 = 0.5*(usprd[1]+vsprd[1])
+    uvsprd1b = np.sqrt((uvsprd1*globalmeanwts).sum())
+
     t2 = time.time()
     if profile: print('cpu time for forward operator',t2-t1)
 
@@ -552,6 +570,13 @@ for ntime in range(nassim):
            uverrbtb,uvsprdbtb,\
            uverrbcb,uvsprdbcb,\
            np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
+
+    #print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    #(ntime,theterrb,thetsprdb,\
+    #       werrb,wsprdb,\
+    #       uverr0b,uvsprd0b,\
+    #       uverr1b,uvsprd1b,\
+    #       np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
 
     # write out data.
     if savedata:
