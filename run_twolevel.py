@@ -51,7 +51,7 @@ nc.rsphere = rsphere
 nc.gridtype = gridtype
 nc.ntrunc = ntrunc
 nc.dt = dt
-atts = ['grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp']
+atts = ['grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp','moistfact']
 for att in atts:
     nc.setncattr(att,model.__dict__[att])
 lat = nc.createDimension('lat',sp.nlats)
