@@ -53,6 +53,18 @@ def regriduv(spin,spout,ugridin,vgridin,levs=2):
     ugridout,vgridout = spout.getuv(vrtspecout,divspecout)
     return ugridout,vgridout
 
+def getvarspectrum(sp,vrtspec,norm=None):
+    varspect = np.zeros(sp.ntrunc+1,np.float64)
+    if norm is None: # ke norm for vrtspec is -0.5*sp.invlap
+        norm = np.ones(sp.nlm, np.float64)
+    for n in range(sp.nlm):
+        vrtmag = (vrtspec[n]*np.conj(vrtspec[n])).real
+        if sp.order[n] == 0:
+            varspect[sp.degree[n]] += norm[n]*vrtmag
+        else:
+            varspect[sp.degree[n]] += 2.*norm[n]*vrtmag
+    return varspect
+
 class Spharmt(object):
     """
     wrapper class for commonly used spectral transform operations in
