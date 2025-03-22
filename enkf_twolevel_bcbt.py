@@ -4,7 +4,7 @@ from pyspharm import Spharmt, regrid, regriduv, getvarspectrum
 from twolevel import TwoLevel 
 import numpy as np
 from netCDF4 import Dataset
-import sys, time
+import sys, time, os
 from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
                         letkf_calcwts,letkf_update
 
