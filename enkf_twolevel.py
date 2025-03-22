@@ -179,15 +179,6 @@ for nanal in range(nanals):
     vrtbtspec[nanal], divbtspec[nanal] = sp.getvrtdivspec(uensbt[nanal],vensbt[nanal])
     thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
 
-    #varspect = getvarspectrum(sp, thetaspec[nanal])
-    #vargrid = (thetaens[nanal]**2*globalmeanwts).sum()
-    #print(vargrid, varspect.sum())
-    #print(varspect)
-
-    #varspect = getvarspectrum(sp, vrtbtspec[nanal],norm=-0.5*sp.invlap)
-    #vargrid = ((0.5*uensbt[nanal]**2+0.5*vensbt[nanal]**2)*globalmeanwts).sum()
-    #print(vargrid, varspect.sum())
-    #print(varspect)
 nvars = 5
 ndim1 = sp.nlons*sp.nlats
 ndim = nvars*ndim1
@@ -288,6 +279,8 @@ for nanal in range(nanals):
 
 kespec_sprd_mean = np.zeros(sp.ntrunc+1, np.float64)
 kespec_err_mean = np.zeros(sp.ntrunc+1, np.float64)
+kegrid_sprd_mean = np.zeros((sp.nlats, sp.nlons), np.float64)
+kegrid_err_mean = np.zeros((sp.nlats, sp.nlons), np.float64)
 ncount = 0
 for ntime in range(nassim):
 
@@ -540,36 +533,36 @@ for ntime in range(nassim):
         divbtspec[nanal] = 0.5*(divspec[nanal,1,...] + divspec[nanal,0,...])
         uensbt[nanal],vensbt[nanal] = sp.getuv(vrtbtspec[nanal],divbtspec[nanal])
 
-    if nassim >= nassim_spinup:
+    if ntime  >= nassim_spinup:
+        kenorm = (-0.5*sp.invlap).real
         kespec_sprd = np.zeros(sp.ntrunc+1, np.float64)
         vrtbtspec_mean = vrtbtspec.mean(axis=0)
         uensbt_mean = uensbt.mean(axis=0); vensbt_mean = vensbt.mean(axis=0)
         for nanal in range(nanals):
-            kespec_sprd += getvarspectrum(sp, vrtbtspec[nanal]-vrtbtspec_mean, norm=-0.5*sp.invlap)/(nanals-1)
-        kespec_sprd_mean += kespec_sprd/(nassim-nassim_spinup+1)
+            kespec_sprd += getvarspectrum(sp, vrtbtspec[nanal]-vrtbtspec_mean, norm=kenorm)/(nanals-1)
+        kespec_sprd_mean += kespec_sprd/(nassim-nassim_spinup)
         uensbt_truth = 0.5*(utruth[ntime+1,1,:,:]+utruth[ntime+1,0,:,:])
         vensbt_truth = 0.5*(vtruth[ntime+1,1,:,:]+vtruth[ntime+1,0,:,:])
         vrtbtspec_truth, divbtspec_truth = sp.getvrtdivspec(uensbt_truth,vensbt_truth)
-        kespec_err = getvarspectrum(sp, vrtbtspec_mean-vrtbtspec_truth, norm=-0.5*sp.invlap)
-        kespec_err_mean += kespec_err/(nassim-nassim_spinup+1)
+        kespec_err = getvarspectrum(sp, vrtbtspec_mean-vrtbtspec_truth, norm=kenorm)
+        kespec_err_mean += kespec_err/(nassim-nassim_spinup)
         ncount += 1
-        #kesprd_grid = 0.5*(uensbt-uensbt_mean)**2 + 0.5*(vensbt-vensbt_mean)**2
-        #kesprd_grid = (kesprd_grid*globalmeanwts).sum()/(nanals-1)
-        #kegrid_err = 0.5*(uensbt_mean-uensbt_truth)**2 + 0.5*(vensbt_mean-vensbt_truth)**2
-        #kegrid_err = (kegrid_err*globalmeanwts).sum()
-        #print(kespec_sprd.sum(), kesprd_grid)
-        #print(kespec_err.sum(), kegrid_err)
-        #raise SystemExit
+        kegrid_sprd = (0.5*(uensbt-uensbt_mean)**2 + 0.5*(vensbt-vensbt_mean)**2).sum(axis=0)/(nanals-1)
+        kegrid_sprd_mean += kegrid_sprd/(nassim-nassim_spinup)
+        kegrid_err = 0.5*(uensbt_mean-uensbt_truth)**2 + 0.5*(vensbt_mean-vensbt_truth)**2
+        kegrid_err_mean += kegrid_err/(nassim-nassim_spinup)
 
     t2 = time.time()
     if profile:print('cpu time for ens forecast',t2-t1)
 
 import matplotlib.pyplot as plt
 plt.figure()
-print("# n err sprd %s %s" % (ncount,nassim-nassim_spinup+1))
+print("# n err sprd %s %s" % (ncount,nassim-nassim_spinup))
 for n in range(ntrunc+1):
     print('# ',n,kespec_err_mean[n],kespec_sprd_mean[n])
-print('# global mean err %s spread %s' % (kespec_err_mean.sum(),kespec_sprd_mean.sum()))
+kegrid_err = (kegrid_err_mean*globalmeanwts).sum()
+kegrid_sprd = (kegrid_sprd_mean*globalmeanwts).sum()
+print('# global mean err %s %s spread %s %s' % (np.sqrt(kespec_err_mean.sum()),np.sqrt(kegrid_err),np.sqrt(kespec_sprd_mean.sum()),np.sqrt(kegrid_sprd)))
 plt.loglog(np.arange(ntrunc+1),kespec_err_mean,color='r')
 plt.loglog(np.arange(ntrunc+1),kespec_sprd_mean,color='b')
 plt.title('error (red) and spread (blue) ke spectra')
