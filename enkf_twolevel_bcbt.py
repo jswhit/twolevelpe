@@ -26,6 +26,7 @@ else:
     covinflate2 = covinflate1
     smoothfact = 1.e30
 
+exptname = os.getenv('exptname','test')
 profile = False # turn on profiling?
 use_letkf = False # use LETKF?
 if use_letkf:
@@ -44,7 +45,7 @@ wind_obs = True # assimilate vertical mean (barotropic) winds also
 oberrstdev = 1.0 # temp ob error in K
 oberrstdevw = 2.5 # ob err for vertical mean wind in mps
 nassim_spinup = 100
-nassim = 200 # assimilation times to run
+nassim = 600 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
                # polynomial for localization.
 
@@ -77,7 +78,7 @@ smoothspec = np.exp( (sp.lap*sp.rsphere**2/(smoothfact*(smoothfact+1)) )**expone
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt,div2_diff_efold=div2_diff_efold))
+    models.append(TwoLevel(sp,dt,umax=ncm.umax,jetexp=ncm.jetexp,delth=ncm.delth,ndiss=ncm.ndiss,efold=ncm.efold,div2_diff_efold=div2_diff_efold,tdrag=ncm.tdrag,tdiab=ncm.tdiab))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
@@ -653,4 +654,4 @@ print('# global mean err %s spread %s' % (kespec_err_mean.sum(),kespec_sprd_mean
 plt.loglog(np.arange(ntrunc+1),kespec_err_mean,color='r')
 plt.loglog(np.arange(ntrunc+1),kespec_sprd_mean,color='b')
 plt.title('error (red) and spread (blue) ke spectra')
-plt.savefig('keerrorspread_spectra.png')
+plt.savefig('keerrorspread_spectra_%s.png' % exptname)
