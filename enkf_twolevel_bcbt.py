@@ -1,5 +1,7 @@
-from pyspharm import Spharmt, regrid, regriduv
-from twolevel import TwoLevel
+import matplotlib
+matplotlib.use('agg')
+from pyspharm import Spharmt, regrid, regriduv, getvarspectrum
+from twolevel import TwoLevel 
 import numpy as np
 from netCDF4 import Dataset
 import sys, time
@@ -41,7 +43,8 @@ nanals = 20 # ensemble members
 wind_obs = True # assimilate vertical mean (barotropic) winds also
 oberrstdev = 1.0 # temp ob error in K
 oberrstdevw = 2.5 # ob err for vertical mean wind in mps
-nassim = 2101 # assimilation times to run
+nassim_spinup = 100
+nassim = 200 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
                # polynomial for localization.
 
@@ -69,7 +72,7 @@ truth_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 spout = sp
 # gaussian exponential smoothing for scale separation.
-exponent = 3
+exponent = 3 # 1 like del**2, 2 like del**4, 3 like del**6 diffusion
 smoothspec = np.exp( (sp.lap*sp.rsphere**2/(smoothfact*(smoothfact+1)) )**exponent)
 
 models = []
@@ -105,20 +108,20 @@ else:
 print('# %s obs to assimilate (out of %s) with ob err stdev = (%s, %s)' % (nobs,nobsall,oberrstdev,oberrstdevw))
 print('# covlocal_scale=%s km, covinflate1=%s, covinflate2=%s, smoothfact=%s, wind_obs=%s' %\
 (covlocal_scale/1000., covinflate1, covinflate2, smoothfact, wind_obs))
-thetaobsall = np.empty((nassim,nobsall),np.float32)
+thetaobsall = np.empty((nassim+1,nobsall),np.float32)
 if wind_obs:
-    uobsall = np.empty((nassim,nobsall),np.float32)
-    vobsall = np.empty((nassim,nobsall),np.float32)
-utruth = np.empty((nassim,2,nlats,nlons),np.float32)
-vtruth = np.empty((nassim,2,nlats,nlons),np.float32)
-wtruth = np.empty((nassim,nlats,nlons),np.float32)
-thetatruth = np.empty((nassim,nlats,nlons),np.float32)
+    uobsall = np.empty((nassim+1,nobsall),np.float32)
+    vobsall = np.empty((nassim+1,nobsall),np.float32)
+utruth = np.empty((nassim+1,2,nlats,nlons),np.float32)
+vtruth = np.empty((nassim+1,2,nlats,nlons),np.float32)
+wtruth = np.empty((nassim+1,nlats,nlons),np.float32)
+thetatruth = np.empty((nassim+1,nlats,nlons),np.float32)
 if wind_obs:
     oberrvar = np.empty(3*nobs,np.float32); oberrvar[:nobs] = oberrstdev**2; oberrvar[nobs:] = oberrstdevw**2
 else:
     oberrvar = np.empty(nobs,np.float32); oberrvar[:] = oberrstdev**2
-obtimes = np.empty((nassim),np.float32)
-for n in range(nassim):
+obtimes = np.empty((nassim+1,),np.float32)
+for n in range(nassim+1):
     # flip latitude direction so lats are increasing (needed for interpolation)
     vrtspec_tmp,divspec_tmp =\
     spin.getvrtdivspec(nct.variables['u'][n],nct.variables['v'][n])
@@ -183,6 +186,16 @@ for nanal in range(nanals):
     vrtbcspec[nanal], divbcspec[nanal] = sp.getvrtdivspec(uensbc[nanal],vensbc[nanal])
     vrtbtspec[nanal], divbtspec[nanal] = sp.getvrtdivspec(uensbt[nanal],vensbt[nanal])
     thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
+
+    #varspect = getvarspectrum(sp, thetaspec[nanal])
+    #vargrid = (thetaens[nanal]**2*globalmeanwts).sum()
+    #print(vargrid, varspect.sum())
+    #print(varspect)
+
+    #varspect = getvarspectrum(sp, vrtbtspec[nanal],norm=-0.5*sp.invlap)
+    #vargrid = ((0.5*uensbt[nanal]**2+0.5*vensbt[nanal]**2)*globalmeanwts).sum()
+    #print(vargrid, varspect.sum())
+    #print(varspect)
 nvars = 5
 ndim1 = sp.nlons*sp.nlats
 ndim = nvars*ndim1
@@ -283,6 +296,8 @@ if savedata is not None:
 for nanal in range(nanals):
     models[nanal].t = obtimes[0]*3600.
 
+kespec_sprd_mean = np.zeros(sp.ntrunc+1, np.float64)
+kespec_err_mean = np.zeros(sp.ntrunc+1, np.float64)
 for ntime in range(nassim):
 
     # check model clock
@@ -604,5 +619,38 @@ for ntime in range(nassim):
         divbcspec[nanal] = 0.5*(divspec[nanal,1,...] - divspec[nanal,0,...])
         vrtbtspec[nanal] = 0.5*(vrtspec[nanal,1,...] + vrtspec[nanal,0,...])
         divbtspec[nanal] = 0.5*(divspec[nanal,1,...] + divspec[nanal,0,...])
+        uensbt[nanal],vensbt[nanal] = sp.getuv(vrtbtspec[nanal],divbtspec[nanal])
+
+    if nassim >= nassim_spinup:
+        kespec_sprd = np.zeros(sp.ntrunc+1, np.float64)
+        vrtbtspec_mean = vrtbtspec.mean(axis=0)
+        uensbt_mean = uensbt.mean(axis=0); vensbt_mean = vensbt.mean(axis=0)
+        for nanal in range(nanals):
+            kespec_sprd += getvarspectrum(sp, vrtbtspec[nanal]-vrtbtspec_mean, norm=-0.5*sp.invlap)/(nanals-1)
+        kespec_sprd_mean += kespec_sprd/(nassim-nassim_spinup+1)
+        kesprd_grid = 0.5*(uensbt-uensbt_mean)**2 + 0.5*(vensbt-vensbt_mean)**2
+        uensbt_truth = 0.5*(utruth[ntime+1,1,:,:]+utruth[ntime+1,0,:,:])
+        vensbt_truth = 0.5*(vtruth[ntime+1,1,:,:]+vtruth[ntime+1,0,:,:])
+        vrtbtspec_truth, divbtspec_truth = sp.getvrtdivspec(uensbt_truth,vensbt_truth)
+        kespec_err = getvarspectrum(sp, vrtbtspec_mean-vrtbtspec_truth, norm=-0.5*sp.invlap)
+        kespec_err_mean += kespec_err/(nassim-nassim_spinup+1)
+        #kegrid_err = 0.5*(uensbt_mean-uensbt_truth)**2 + 0.5*(vensbt_mean-vensbt_truth)**2
+        #kesprd_grid = (kesprd_grid*globalmeanwts).sum()/(nanals-1)
+        #kegrid_err = (kegrid_err*globalmeanwts).sum()
+        #print(kespec_sprd.sum(), kesprd_grid)
+        #print(kespec_err.sum(), kegrid_err)
+        #raise SystemExit
+
     t2 = time.time()
     if profile:print('cpu time for ens forecast',t2-t1)
+
+import matplotlib.pyplot as plt
+plt.figure()
+print("# n err sprd")
+for n in range(ntrunc+1):
+    print('# ',n,kespec_err_mean[n],kespec_sprd_mean[n])
+print('# global mean err %s spread %s' % (kespec_err_mean.sum(),kespec_sprd_mean.sum()))
+plt.loglog(np.arange(ntrunc+1),kespec_err_mean,color='r')
+plt.loglog(np.arange(ntrunc+1),kespec_sprd_mean,color='b')
+plt.title('error (red) and spread (blue) ke spectra')
+plt.savefig('keerrorspread_spectra.png')
