@@ -4,6 +4,10 @@ import numpy as np
 from netCDF4 import Dataset
 
 # grid, time step info
+#nlons = 256; nlats = nlons//2  # number of longitudes/latitudes
+#ntrunc = 85
+#dt = 1200. # time step in seconds
+
 nlons = 192; nlats = nlons//2  # number of longitudes/latitudes
 ntrunc = 64
 dt = 1800. # time step in seconds
@@ -26,10 +30,10 @@ rsphere = 6.37122e6 # earth radius
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
 nstart = int((200.*86400.)/dt) # end of spinup period
-nmax = int((12200.*86400.)/dt) # total duration of run
+nmax = int((2200.*86400.)/dt) # total duration of run
 
 # create model instance
-model = TwoLevel(sp,dt,jetexp=4,umax=50,tdrag=2.*86400,tdiab=14.*86400.)
+model = TwoLevel(sp,dt,jetexp=4,umax=50,tdrag=4.*86400,tdiab=20.*86400.)
 print('pole/equator temp diff = ', model.thetaref.max()-model.thetaref.min())
 
 # vort, div initial conditions
@@ -51,7 +55,7 @@ nc.rsphere = rsphere
 nc.gridtype = gridtype
 nc.ntrunc = ntrunc
 nc.dt = dt
-atts = ['grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp']
+atts = ['grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp','moistfact']
 for att in atts:
     nc.setncattr(att,model.__dict__[att])
 lat = nc.createDimension('lat',sp.nlats)
