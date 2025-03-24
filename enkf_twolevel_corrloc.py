@@ -1,8 +1,10 @@
-from pyspharm import Spharmt, regrid, regriduv
-from twolevel import TwoLevel
+import matplotlib
+matplotlib.use('agg')
+from pyspharm import Spharmt, regrid, regriduv, getvarspectrum
+from twolevel import TwoLevel 
 import numpy as np
 from netCDF4 import Dataset
-import sys, time
+import sys, time, os
 from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
                         letkf_calcwts_corr,letkf_update_corr
 
@@ -10,19 +12,16 @@ from enkf_utils import  gcdist,bilintrp,serial_ensrf,gaspcohn,fibonacci_pts,\
 
 if len(sys.argv) == 1:
    msg="""
-python enkf_twolevel.py covlocal_scale covinflate
+python enkf_twolevel.py covlocal_scale covinflate corr_power
    """
    raise SystemExit(msg)
 # covariance localization length scale in meters.
 covlocal_scale = float(sys.argv[1])
 # covariance inflation parameter (relaxation to prior spread if only one parameter given).
-corr_power = float(sys.argv[2])
-covinflate1 = float(sys.argv[3])
-if len(sys.argv) > 4:
-    covinflate2 = float(sys.argv[4]) # Hodyss and Campbell inflation (2 parameters)
-else: 
-    covinflate2 = -1 # if -1, it's RTPS inflation
+covinflate = float(sys.argv[2])
+corr_power = float(sys.argv[3])
 
+exptname = os.getenv('exptname','test')
 profile = False # turn on profiling?
 use_letkf = True # use LETKF?
 if use_letkf:
@@ -30,17 +29,18 @@ if use_letkf:
 else:
     print('# using serial EnSRF...')
 
-nobs = 1024 # number of ob locations to assimilate
+nobs = 512   # number of ob locations to assimilate
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from an evenly spaced fibonacci grid of nominally nobsall points.
 # if nobsall = nobs, a fixed observing network is used.
 nobsall = 10*nobs
 #nobsall = nobs
 nanals = 20 # ensemble members
-wind_obs = True # assimilate vertical mean winds also
+wind_obs = False # assimilate vertical mean (barotropic) winds also
 oberrstdev = 1.0 # temp ob error in K
 oberrstdevw = 2.5 # ob err for vertical mean wind in mps
-nassim = 2101 # assimilation times to run
+nassim_spinup = 200
+nassim = 700 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
                # polynomial for localization.
 
@@ -55,14 +55,14 @@ div2_diff_efold = 3600. # divergence diffusion to damp GW
 np.random.seed(42)
 
 # model nature run to sample initial ensemble and draw additive noise.
-modelclimo_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
+modelclimo_file = 'truth_twolevel_t%s_6h_jetexp0.nc' % ntrunc
 ncm = Dataset(modelclimo_file)
 dt = ncm.dt
 rsphere = ncm.rsphere
 # 'truth' nature run to sample obs
 # (these two files can be the same for perfect model expts)
 # file to sample additive noise.
-truth_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
+truth_file = 'truth_twolevel_t%s_6h_jetexp0.nc' % ntrunc
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
@@ -70,7 +70,7 @@ spout = sp
 
 models = []
 for nanal in range(nanals):
-    models.append(TwoLevel(sp,dt,div2_diff_efold=div2_diff_efold))
+    models.append(TwoLevel(sp,dt,umax=ncm.umax,jetexp=ncm.jetexp,delth=ncm.delth,ndiss=ncm.ndiss,efold=ncm.efold,div2_diff_efold=div2_diff_efold,tdrag=ncm.tdrag,tdiab=ncm.tdiab))
 
 # weights for computing global means.
 globalmeanwts = models[0].globalmeanwts
@@ -99,22 +99,22 @@ else:
     nobsall = len(oblatsall)
 
 print('# %s obs to assimilate (out of %s) with ob err stdev = (%s, %s)' % (nobs,nobsall,oberrstdev,oberrstdevw))
-print('# covlocal_scale=%s km, corr_power=%s, covinflate1=%s, covinflate2=%s,  wind_obs=%s' %\
-(covlocal_scale/1000., corr_power, covinflate1, covinflate2, wind_obs))
-thetaobsall = np.empty((nassim,nobsall),np.float32)
+print('# covlocal_scale=%s km, covinflate=%s, corr_power=%s, wind_obs=%s' %\
+(covlocal_scale/1000., covinflate, corr_power, wind_obs))
+thetaobsall = np.empty((nassim+1,nobsall),np.float32)
 if wind_obs:
-    uobsall = np.empty((nassim,nobsall),np.float32)
-    vobsall = np.empty((nassim,nobsall),np.float32)
-utruth = np.empty((nassim,2,nlats,nlons),np.float32)
-vtruth = np.empty((nassim,2,nlats,nlons),np.float32)
-wtruth = np.empty((nassim,nlats,nlons),np.float32)
-thetatruth = np.empty((nassim,nlats,nlons),np.float32)
+    uobsall = np.empty((nassim+1,nobsall),np.float32)
+    vobsall = np.empty((nassim+1,nobsall),np.float32)
+utruth = np.empty((nassim+1,2,nlats,nlons),np.float32)
+vtruth = np.empty((nassim+1,2,nlats,nlons),np.float32)
+wtruth = np.empty((nassim+1,nlats,nlons),np.float32)
+thetatruth = np.empty((nassim+1,nlats,nlons),np.float32)
 if wind_obs:
     oberrvar = np.empty(3*nobs,np.float32); oberrvar[:nobs] = oberrstdev**2; oberrvar[nobs:] = oberrstdevw**2
 else:
     oberrvar = np.empty(nobs,np.float32); oberrvar[:] = oberrstdev**2
-obtimes = np.empty((nassim),np.float32)
-for n in range(nassim):
+obtimes = np.empty((nassim+1,),np.float32)
+for n in range(nassim+1):
     # flip latitude direction so lats are increasing (needed for interpolation)
     vrtspec_tmp,divspec_tmp =\
     spin.getvrtdivspec(nct.variables['u'][n],nct.variables['v'][n])
@@ -146,12 +146,14 @@ nct.close()
 indx = np.random.choice(np.arange(len(ncm.variables['t'])),nanals,replace=False)
 #indx[:] = 0 # for testing forward operator
 thetaens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
-wens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
 uens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float32)
 vens = np.empty((nanals,2,sp.nlats,sp.nlons),np.float32)
-thetinf = np.empty((sp.nlats,sp.nlons),np.float32)
-uinf = np.empty((2,sp.nlats,sp.nlons),np.float32)
-vinf = np.empty((2,sp.nlats,sp.nlons),np.float32)
+# control vector is baroclinic/barotropic wind (instead of winds at each level)
+uensbc = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
+vensbc = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
+uensbt = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
+vensbt = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
+wens = np.empty((nanals,sp.nlats,sp.nlons),np.float32)
 theta_modelclim = ncm.variables['theta']
 u_modelclim = ncm.variables['u']
 v_modelclim = ncm.variables['v']
@@ -159,21 +161,31 @@ v_modelclim = ncm.variables['v']
 nanal=0
 for n in indx:
     thetaens[nanal] = theta_modelclim[n]
-    uens[nanal] = u_modelclim[n]
-    vens[nanal] = v_modelclim[n]
+    uensbc[nanal] = 0.5*(u_modelclim[n,1,...] - u_modelclim[n,0,...])
+    vensbc[nanal] = 0.5*(v_modelclim[n,1,...] - v_modelclim[n,0,...])
+    uensbt[nanal] = 0.5*(u_modelclim[n,1,...] + u_modelclim[n,0,...])
+    vensbt[nanal] = 0.5*(v_modelclim[n,1,...] + v_modelclim[n,0,...])
     nanal += 1
 
 # transform initial ensemble to spectral space
 vrtspec = np.empty((nanals,2,sp.nlm),np.complex128)
 divspec = np.empty((nanals,2,sp.nlm),np.complex128)
+vrtbcspec = np.empty((nanals,sp.nlm),np.complex128)
+divbcspec = np.empty((nanals,sp.nlm),np.complex128)
+vrtbtspec = np.empty((nanals,sp.nlm),np.complex128)
+divbtspec = np.empty((nanals,sp.nlm),np.complex128)
 thetaspec = np.empty((nanals,sp.nlm),np.complex128)
 for nanal in range(nanals):
-    vrtspec[nanal], divspec[nanal] = sp.getvrtdivspec(uens[nanal],vens[nanal])
+    vrtbcspec[nanal], divbcspec[nanal] = sp.getvrtdivspec(uensbc[nanal],vensbc[nanal])
+    vrtbtspec[nanal], divbtspec[nanal] = sp.getvrtdivspec(uensbt[nanal],vensbt[nanal])
     thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
+
 nvars = 5
 ndim1 = sp.nlons*sp.nlats
 ndim = nvars*ndim1
 xens = np.empty((nanals,ndim),np.float32) # empty 1d state vector array
+xens_l  = np.empty_like(xens)
+xens_s  = np.empty_like(xens)
 
 # precompute covariance localization for fixed observation network.
 covlocal1 = np.zeros((nobsall,ndim1),np.float32)
@@ -206,8 +218,7 @@ if savedata is not None:
     ncout.ntrunc = ntrunc
     ncout.dt = dt
     ncout.nassim = nassim
-    ncout.covinflate1 = covinflate1
-    ncout.covinflate2 = covinflate2
+    ncout.covinflate = covinflate
     ncout.covlocal_scale = covlocal_scale
     ncout.truth_file = truth_file
     ncout.modelclimo_file = modelclimo_file
@@ -239,14 +250,6 @@ if savedata is not None:
     thet_ensb.units = 'K'
     w_ensb = ncout.createVariable('wensb',np.float32,('t','ens','lat','lon'),zlib=True)
     w_ensb.units = 'K'
-    u_ensmeanb = ncout.createVariable('uensmeanb',np.float32,('t','level','lat','lon'),zlib=True)
-    u_ensmeanb.units = 'meters per second'
-    v_ensmeanb = ncout.createVariable('vensmeanb',np.float32,('t','level','lat','lon'),zlib=True)
-    v_ensmeanb.units = 'meters per second'
-    thet_ensmeanb = ncout.createVariable('thetensmeanb',np.float32,('t','lat','lon'),zlib=True)
-    thet_ensmeanb.units = 'K'
-    w_ensmeanb = ncout.createVariable('wensmeanb',np.float32,('t','lat','lon'),zlib=True)
-    w_ensmeanb.units = 'Pa per second'
     u_ensa = ncout.createVariable('uensa',np.float32,('t','ens','level','lat','lon'),zlib=True)
     u_ensa.units = 'meters per second'
     v_ensa = ncout.createVariable('vensa',np.float32,('t','ens','level','lat','lon'),zlib=True)
@@ -255,14 +258,6 @@ if savedata is not None:
     thet_ensa.units = 'K'
     w_ensa = ncout.createVariable('wensa',np.float32,('t','ens','lat','lon'),zlib=True)
     w_ensa.units = 'K'
-    u_ensmeana = ncout.createVariable('uensmeana',np.float32,('t','level','lat','lon'),zlib=True)
-    u_ensmeana.units = 'meters per second'
-    v_ensmeana = ncout.createVariable('vensmeana',np.float32,('t','level','lat','lon'),zlib=True)
-    v_ensmeana.units = 'meters per second'
-    thet_ensmeana = ncout.createVariable('thetensmeana',np.float32,('t','lat','lon'),zlib=True)
-    thet_ensmeana.units = 'K'
-    w_ensmeana = ncout.createVariable('wensmeana',np.float32,('t','lat','lon'),zlib=True)
-    w_ensmeana.units = 'Pa per second'
     u_truth = ncout.createVariable('utruth',np.float32,('t','level','lat','lon'),zlib=True)
     u_truth.units = 'meters per second'
     v_truth = ncout.createVariable('vtruth',np.float32,('t','level','lat','lon'),zlib=True)
@@ -271,25 +266,6 @@ if savedata is not None:
     thet_truth.units = 'K'
     w_truth = ncout.createVariable('wtruth',np.float32,('t','lat','lon'),zlib=True)
     w_truth.units = 'Pa per second'
-    u_sprdb = ncout.createVariable('usprdb',np.float32,('t','level','lat','lon'),zlib=True)
-    u_sprdb.units = 'meters per second'
-    v_sprdb = ncout.createVariable('vsprdb',np.float32,('t','level','lat','lon'),zlib=True)
-    v_sprdb.units = 'meters per second'
-    thet_sprdb = ncout.createVariable('thetsprdb',np.float32,('t','lat','lon'),zlib=True)
-    thet_sprdb.units = 'K'
-    w_sprdb = ncout.createVariable('wsprdb',np.float32,('t','lat','lon'),zlib=True)
-    w_sprdb.units = 'Pa per second'
-    u_sprda = ncout.createVariable('usprda',np.float32,('t','level','lat','lon'),zlib=True)
-    u_sprda.units = 'meters per second'
-    v_sprda = ncout.createVariable('vsprda',np.float32,('t','level','lat','lon'),zlib=True)
-    v_sprda.units = 'meters per second'
-    thet_sprda = ncout.createVariable('thetsprda',np.float32,('t','lat','lon'),zlib=True)
-    thet_sprda.units = 'K'
-    w_sprda = ncout.createVariable('wsprda',np.float32,('t','lat','lon'),zlib=True)
-    w_sprda.units = 'Pa per second'
-    #uinflation = ncout.createVariable('uinflation',np.float32,('t','level','lat','lon'),zlib=True)
-    #vinflation = ncout.createVariable('vinflation',np.float32,('t','level','lat','lon'),zlib=True)
-    #thetinflation = ncout.createVariable('thetinflation',np.float32,('t','lat','lon'),zlib=True)
     times = ncout.createVariable('t',np.float32,('t',))
     lats = ncout.createVariable('lat',np.float32,('lat',))
     lats.units = 'degrees north'
@@ -302,6 +278,11 @@ if savedata is not None:
 for nanal in range(nanals):
     models[nanal].t = obtimes[0]*3600.
 
+kespec_sprd_mean = np.zeros(sp.ntrunc+1, np.float64)
+kespec_err_mean = np.zeros(sp.ntrunc+1, np.float64)
+kegrid_sprd_mean = np.zeros((sp.nlats, sp.nlons), np.float64)
+kegrid_err_mean = np.zeros((sp.nlats, sp.nlons), np.float64)
+ncount = 0
 for ntime in range(nassim):
 
     # check model clock
@@ -345,23 +326,27 @@ for ntime in range(nassim):
     thetaobs += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
     for nanal in range(nanals):
         # inverse transform to grid.
-        uens[nanal],vens[nanal] = sp.getuv(vrtspec[nanal],divspec[nanal])
+        uensbc[nanal],vensbc[nanal] = sp.getuv(vrtbcspec[nanal],divbcspec[nanal])
+        uensbt[nanal],vensbt[nanal] = sp.getuv(vrtbtspec[nanal],divbtspec[nanal])
+        uens[nanal,0,...] = uensbt[nanal] - uensbc[nanal]
+        uens[nanal,1,...] = uensbc[nanal] + uensbt[nanal]
+        vens[nanal,0,...] = vensbt[nanal] - vensbc[nanal]
+        vens[nanal,1,...] = vensbc[nanal] + vensbt[nanal]
         thetaens[nanal] = sp.spectogrd(thetaspec[nanal])
         wens[nanal] =\
-        models[nanal].dp*sp.spectogrd(divspec[nanal,1,...]-divspec[nanal,0,...])
+        models[nanal].dp*sp.spectogrd(2*divbcspec[nanal,...])
         # forward operator calculation.
-        theta = thetaens[nanal,::-1,:]
-        hxens[nanal,:nobs] = bilintrp(theta,np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
+        hxens[nanal,:nobs] = bilintrp(thetaens[nanal,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
         if wind_obs:
-            um = (uens[nanal,:,::-1,:]).mean(axis=0)
-            vm = (vens[nanal,:,::-1,:]).mean(axis=0)
-            hxens[nanal,nobs:2*nobs] = bilintrp(um,np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
-            hxens[nanal,2*nobs:] = bilintrp(vm,np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
+            hxens[nanal,nobs:2*nobs] = bilintrp(uensbt[nanal,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
+            hxens[nanal,2*nobs:] = bilintrp(vensbt[nanal,::-1,:],np.degrees(sp.lons),np.degrees(sp.lats[::-1]),oblons,oblats)
     hxensmean = hxens.mean(axis=0)
     obfits = ((thetaobs-hxensmean[:nobs])**2).sum(axis=0)/(nobs-1)
     obbias = (thetaobs-hxensmean[:nobs]).mean(axis=0)
     obsprd = (((hxens[:,:nobs]-hxensmean[:nobs])**2).sum(axis=0)/(nanals-1)).mean()
     uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
+    uensbcmean = uensbc.mean(axis=0); vensbcmean = vensbc.mean(axis=0)
+    uensbtmean = uensbt.mean(axis=0); vensbtmean = vensbt.mean(axis=0)
     thetensmean = thetaens.mean(axis=0)
     wensmean = wens.mean(axis=0)
     theterr = (thetatruth[ntime]-thetensmean)**2
@@ -372,32 +357,40 @@ for ntime in range(nassim):
     thetsprdb = np.sqrt((thetsprd*globalmeanwts).sum())
     wsprd = ((wens-wensmean)**2).sum(axis=0)/(nanals-1)
     wsprdb = np.sqrt((wsprd*globalmeanwts).sum())
+    uverrbc = 0.5*((0.5*(utruth[ntime,1,:,:]-utruth[ntime,0,:,:])-uensbcmean)**2+(0.5*(vtruth[ntime,1,:,:]-vtruth[ntime,0,:,:])-vensbcmean)**2)
+    uverrbcb = np.sqrt((uverrbc*globalmeanwts).sum())
+    usprdbc = ((uensbc-uensbcmean)**2).sum(axis=0)/(nanals-1)
+    vsprdbc = ((vensbc-vensbcmean)**2).sum(axis=0)/(nanals-1)
+    uvsprdbc = 0.5*(usprdbc+vsprdbc)
+    uverrbt = 0.5*((0.5*(utruth[ntime,1,:,:]+utruth[ntime,0,:,:])-uensbtmean)**2+(0.5*(vtruth[ntime,1,:,:]+vtruth[ntime,0,:,:])-vensbtmean)**2)
+    uverrbtb = np.sqrt((uverrbt*globalmeanwts).sum())
+    usprdbt = ((uensbt-uensbtmean)**2).sum(axis=0)/(nanals-1)
+    vsprdbt = ((vensbt-vensbtmean)**2).sum(axis=0)/(nanals-1)
+    uvsprdbt = 0.5*(usprdbt+vsprdbt)
+    uvsprdbcb = np.sqrt((uvsprdbc*globalmeanwts).sum())
+    uvsprdbtb = np.sqrt((uvsprdbt*globalmeanwts).sum())
+
+    uverr0 = 0.5*((utruth[ntime,0,:,:]-uensmean[0])**2+(vtruth[ntime,0,:,:]-vensmean[0])**2)
+    uverr0b = np.sqrt((uverr0*globalmeanwts).sum())
     uverr1 = 0.5*((utruth[ntime,1,:,:]-uensmean[1])**2+(vtruth[ntime,1,:,:]-vensmean[1])**2)
     uverr1b = np.sqrt((uverr1*globalmeanwts).sum())
     usprd = ((uens-uensmean)**2).sum(axis=0)/(nanals-1)
     vsprd = ((vens-vensmean)**2).sum(axis=0)/(nanals-1)
-    uvsprd1 = 0.5*(usprd[1]+vsprd[1])
-    uvsprd1b = np.sqrt((uvsprd1*globalmeanwts).sum())
-    uverr0 = 0.5*((utruth[ntime,0,:,:]-uensmean[0])**2+(vtruth[ntime,0,:,:]-vensmean[0])**2)
-    uverr0b = np.sqrt((uverr0*globalmeanwts).sum())
     uvsprd0 = 0.5*(usprd[0]+vsprd[0])
     uvsprd0b = np.sqrt((uvsprd0*globalmeanwts).sum())
+    uvsprd1 = 0.5*(usprd[1]+vsprd[1])
+    uvsprd1b = np.sqrt((uvsprd1*globalmeanwts).sum())
+
     t2 = time.time()
     if profile: print('cpu time for forward operator',t2-t1)
 
     if savedata:
-        u_ensb[nout] = uens
-        v_ensb[nout] = vens
+        u_ensb[nout,:,0,:,:] = uensbt - uensbc
+        u_ensb[nout,:,1,:,:] = uensbc + uensbt
+        v_ensb[nout,:,0,:,:] = vensbt - vensbc
+        v_ensb[nout,:,1,:,:] = vensbc + vensbt
         thet_ensb[nout] = thetaens
         w_ensb[nout] = wens
-        u_ensmeanb[nout] = uensmean
-        v_ensmeanb[nout] = vensmean
-        thet_ensmeanb[nout] = thetensmean
-        w_ensmeanb[nout] = wensmean
-        u_sprdb[nout] = usprd
-        v_sprdb[nout] = vsprd
-        thet_sprdb[nout] = thetsprd
-        w_sprdb[nout] = wsprd
         oblats_var[nout] = oblats
         oblons_var[nout] = oblons
         thetobs_var[nout] = thetaobs
@@ -410,22 +403,26 @@ for ntime in range(nassim):
     # create 1d state vector.
     for nanal in range(nanals):
         if use_letkf:
-            uens1 = uens[nanal].reshape((2,ndim1))
-            vens1 = vens[nanal].reshape((2,ndim1))
+            uensbc1 = uensbc[nanal].reshape((ndim1,))
+            vensbc1 = vensbc[nanal].reshape((ndim1,))
+            uensbt1 = uensbt[nanal].reshape((ndim1,))
+            vensbt1 = vensbt[nanal].reshape((ndim1,))
             thetaens1 = thetaens[nanal].reshape((ndim1,))
             for n in range(ndim1):
-                xens[nanal,nvars*n] = uens1[0,n]
-                xens[nanal,nvars*n+1] = uens1[1,n]
-                xens[nanal,nvars*n+2] = vens1[0,n]
-                xens[nanal,nvars*n+3] = vens1[1,n]
+                xens[nanal,nvars*n]   = uensbc1[n]
+                xens[nanal,nvars*n+1] = uensbt1[n]
+                xens[nanal,nvars*n+2] = vensbc1[n]
+                xens[nanal,nvars*n+3] = vensbt1[n]
                 xens[nanal,nvars*n+4] = thetaens1[n]
                 n += 1
         else:
-            xens[nanal] = np.concatenate((uens[nanal,0,...],uens[nanal,1,...],\
-                          vens[nanal,0,...],vens[nanal,1,...],thetaens[nanal])).ravel()
+            xens[nanal] = np.concatenate((uensbc[nanal],uensbt[nanal],\
+                          vensbc[nanal],vensbt[nanal],thetaens[nanal])).ravel()
+
     xmean_b = xens.mean(axis=0); xprime = xens-xmean_b
     # background spread.
     fsprd = (xprime**2).sum(axis=0)/(nanals-1)
+
     # update state vector.
     if use_letkf:
         ominusf = np.empty_like(oberrvar)
@@ -450,109 +447,77 @@ for ntime in range(nassim):
         else:
             xens = serial_ensrf(xens,hxens,obs,oberrvar,covlocal_tmp,hcovlocal_tmp)
     xmean = xens.mean(axis=0); xprime = xens-xmean
+
     # analysis spread
     asprd = (xprime**2).sum(axis=0)/(nanals-1)
-    # posterior inflation
-    if covinflate2 < 0:
-        # relaxation to prior spread (Whitaker and Hamill, https://doi.org/10.1175/MWR-D-11-00276.1)
-        inflation_factor = 1.+covinflate1*(np.sqrt(fsprd)-np.sqrt(asprd))/np.sqrt(asprd)
-    else:
-        # Hodyss and Campbell inflation (https://doi.org/10.1175/MWR-D-15-0329.1)
-        inc = xmean - xmean_b
-        inflation_factor = np.sqrt(covinflate1 + \
-            (asprd/fsprd**2)*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1))))
+    # RTPS inflation
+    inflation_factor = 1.+covinflate*(np.sqrt(fsprd)-np.sqrt(asprd))/np.sqrt(asprd)
     xprime = xprime*inflation_factor
     xens = xmean + xprime
+
     # 1d vector back to 3d arrays.
     for nanal in range(nanals):
         if use_letkf:
             for n in range(ndim1):
-                uens1[0,n] = xens[nanal,nvars*n]
-                uens1[1,n] = xens[nanal,nvars*n+1]
-                vens1[0,n] = xens[nanal,nvars*n+2]
-                vens1[1,n] = xens[nanal,nvars*n+3]
+                uensbc1[n] = xens[nanal,nvars*n]
+                uensbt1[n] = xens[nanal,nvars*n+1]
+                vensbc1[n] = xens[nanal,nvars*n+2]
+                vensbt1[n] = xens[nanal,nvars*n+3]
                 thetaens1[n] = xens[nanal,nvars*n+4]
                 n += 1
-            uens[nanal] = uens1.reshape((2,sp.nlats,sp.nlons))
-            vens[nanal] = vens1.reshape((2,sp.nlats,sp.nlons))
+            uensbc[nanal] = uensbc1.reshape((sp.nlats,sp.nlons))
+            vensbc[nanal] = vensbc1.reshape((sp.nlats,sp.nlons))
+            uensbt[nanal] = uensbt1.reshape((sp.nlats,sp.nlons))
+            vensbt[nanal] = vensbt1.reshape((sp.nlats,sp.nlons))
             thetaens[nanal] = thetaens1.reshape((sp.nlats,sp.nlons,))
         else:
             xsplit = np.split(xens[nanal],5)
-            uens[nanal,0,...] = xsplit[0].reshape((sp.nlats,sp.nlons))
-            uens[nanal,1,...] = xsplit[1].reshape((sp.nlats,sp.nlons))
-            vens[nanal,0,...] = xsplit[2].reshape((sp.nlats,sp.nlons))
-            vens[nanal,1,...] = xsplit[3].reshape((sp.nlats,sp.nlons))
+            uensbc[nanal] = xsplit[0].reshape((sp.nlats,sp.nlons))
+            uensbt[nanal] = xsplit[1].reshape((sp.nlats,sp.nlons))
+            vensbc[nanal] = xsplit[2].reshape((sp.nlats,sp.nlons))
+            vensbt[nanal] = xsplit[3].reshape((sp.nlats,sp.nlons))
             thetaens[nanal]   = xsplit[4].reshape((sp.nlats,sp.nlons))
+
+        vrtbtspec[nanal], divbtspec[nanal] = sp.getvrtdivspec(uensbt[nanal],vensbt[nanal])
+        divbtspec[nanal] = 0. # enforce zero vertical mean divergence
+        uensbt[nanal],vensbt[nanal] = sp.getuv(vrtbtspec[nanal],divbtspec[nanal])
+        uens[nanal,0,...] = uensbt[nanal] - uensbc[nanal]
+        uens[nanal,1,...] = uensbc[nanal] + uensbt[nanal]
+        vens[nanal,0,...] = vensbt[nanal] - vensbc[nanal]
+        vens[nanal,1,...] = vensbc[nanal] + vensbt[nanal]
         vrtspec[nanal], divspec[nanal] = sp.getvrtdivspec(uens[nanal],vens[nanal])
         thetaspec[nanal] = sp.grdtospec(thetaens[nanal])
         wens[nanal] =\
         models[nanal].dp*sp.spectogrd(divspec[nanal,1,...]-divspec[nanal,0,...])
-    infsplit = np.split(inflation_factor,5)
-    uinf[0,...] = infsplit[0].reshape((sp.nlats,sp.nlons))
-    uinf[1,...] = infsplit[1].reshape((sp.nlats,sp.nlons))
-    vinf[0,...] = infsplit[2].reshape((sp.nlats,sp.nlons))
-    vinf[1,...] = infsplit[3].reshape((sp.nlats,sp.nlons))
-    thetinf    = infsplit[4].reshape((sp.nlats,sp.nlons))
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
-    uensmean = uens.mean(axis=0); vensmean = vens.mean(axis=0)
-    thetensmean = thetaens.mean(axis=0)
-    wensmean = wens.mean(axis=0)
-    theterr = (thetatruth[ntime]-thetensmean)**2
-    theterra = np.sqrt((theterr*globalmeanwts).sum())
-    werr = (wtruth[ntime]-wensmean)**2
-    werra = np.sqrt((werr*globalmeanwts).sum())
-    thetsprd = ((thetaens-thetensmean)**2).sum(axis=0)/(nanals-1)
-    thetsprda = np.sqrt((thetsprd*globalmeanwts).sum())
-    wsprd = ((wens-wensmean)**2).sum(axis=0)/(nanals-1)
-    wsprda = np.sqrt((wsprd*globalmeanwts).sum())
-    uverr1 = 0.5*((utruth[ntime,1,:,:]-uensmean[1])**2+(vtruth[ntime,1,:,:]-vensmean[1])**2)
-    uverr1a = np.sqrt((uverr1*globalmeanwts).sum())
-    usprd = ((uens-uensmean)**2).sum(axis=0)/(nanals-1)
-    vsprd = ((vens-vensmean)**2).sum(axis=0)/(nanals-1)
-    uvsprd1 = 0.5*(usprd[1]+vsprd[1])
-    uvsprd1a = np.sqrt((uvsprd1*globalmeanwts).sum())
-    uverr0 = 0.5*((utruth[ntime,0,:,:]-uensmean[0])**2+(vtruth[ntime,0,:,:]-vensmean[0])**2)
-    uverr0a = np.sqrt((uverr0*globalmeanwts).sum())
-    uvsprd0 = 0.5*(usprd[0]+vsprd[0])
-    uvsprd0a = np.sqrt((uvsprd0*globalmeanwts).sum())
-    # print rms wind and temp error & spread (relative to truth for analysis
-    # and background), plus innov stats for background.
-    #print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
-    #(ntime,theterra,thetsprda,theterrb,thetsprdb,\
-    #       werra,wsprda,werrb,wsprdb,\
-    #       uverr0a,uvsprd0a,uverr0b,uvsprd0b,\
-    #       uverr1a,uvsprd1a,uverr1b,uvsprd1b,
-    #       np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
     print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,theterrb,thetsprdb,\
            werrb,wsprdb,\
-           uverr0b,uvsprd0b,\
-           uverr1b,uvsprd1b,\
+           uverrbtb,uvsprdbtb,\
+           uverrbcb,uvsprdbcb,\
            np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
+
+    #print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    #(ntime,theterrb,thetsprdb,\
+    #       werrb,wsprdb,\
+    #       uverr0b,uvsprd0b,\
+    #       uverr1b,uvsprd1b,\
+    #       np.sqrt(obfits),np.sqrt(obsprd+oberrstdev**2),obbias))
 
     # write out data.
     if savedata:
-        u_ensa[nout] = uens
-        v_ensa[nout] = vens
+        u_ensa[nout,:,0,:,:] = uensbt - uensbc
+        u_ensa[nout,:,1,:,:] = uensbc + uensbt
+        v_ensa[nout,:,0,:,:] = vensbt - vensbc
+        v_ensa[nout,:,1,:,:] = vensbc + vensbt
         thet_ensa[nout] = thetaens
         w_ensa[nout] = wens
-        u_ensmeana[nout] = uensmean
-        v_ensmeana[nout] = vensmean
-        thet_ensmeana[nout] = thetensmean
-        w_ensmeana[nout] = wensmean
-        u_sprda[nout] = usprd
-        v_sprda[nout] = vsprd
-        thet_sprda[nout] = thetsprd
-        w_sprda[nout] = wsprd
         u_truth[nout] = utruth[ntime]
         v_truth[nout] = vtruth[ntime]
         thet_truth[nout] = thetatruth[ntime]
         w_truth[nout] = wtruth[ntime]
-        #thetinflation[nout] = thetinf
-        #uinflation[nout] = uinf
-        #vinflation[nout] = vinf
         times = obtimes[ntime]
         nout += 1
 
@@ -562,5 +527,44 @@ for ntime in range(nassim):
         for nanal in range(nanals):
             vrtspec[nanal],divspec[nanal],thetaspec[nanal] = \
             models[nanal].rk4step(vrtspec[nanal],divspec[nanal],thetaspec[nanal])
+    for nanal in range(nanals):
+        vrtbcspec[nanal] = 0.5*(vrtspec[nanal,1,...] - vrtspec[nanal,0,...])
+        divbcspec[nanal] = 0.5*(divspec[nanal,1,...] - divspec[nanal,0,...])
+        vrtbtspec[nanal] = 0.5*(vrtspec[nanal,1,...] + vrtspec[nanal,0,...])
+        divbtspec[nanal] = 0.5*(divspec[nanal,1,...] + divspec[nanal,0,...])
+        uensbt[nanal],vensbt[nanal] = sp.getuv(vrtbtspec[nanal],divbtspec[nanal])
+
+    if ntime  >= nassim_spinup:
+        kenorm = (-0.5*sp.invlap).real
+        kespec_sprd = np.zeros(sp.ntrunc+1, np.float64)
+        vrtbtspec_mean = vrtbtspec.mean(axis=0)
+        uensbt_mean = uensbt.mean(axis=0); vensbt_mean = vensbt.mean(axis=0)
+        for nanal in range(nanals):
+            kespec_sprd += getvarspectrum(sp, vrtbtspec[nanal]-vrtbtspec_mean, norm=kenorm)/(nanals-1)
+        kespec_sprd_mean += kespec_sprd/(nassim-nassim_spinup)
+        uensbt_truth = 0.5*(utruth[ntime+1,1,:,:]+utruth[ntime+1,0,:,:])
+        vensbt_truth = 0.5*(vtruth[ntime+1,1,:,:]+vtruth[ntime+1,0,:,:])
+        vrtbtspec_truth, divbtspec_truth = sp.getvrtdivspec(uensbt_truth,vensbt_truth)
+        kespec_err = getvarspectrum(sp, vrtbtspec_mean-vrtbtspec_truth, norm=kenorm)
+        kespec_err_mean += kespec_err/(nassim-nassim_spinup)
+        ncount += 1
+        kegrid_sprd = (0.5*(uensbt-uensbt_mean)**2 + 0.5*(vensbt-vensbt_mean)**2).sum(axis=0)/(nanals-1)
+        kegrid_sprd_mean += kegrid_sprd/(nassim-nassim_spinup)
+        kegrid_err = 0.5*(uensbt_mean-uensbt_truth)**2 + 0.5*(vensbt_mean-vensbt_truth)**2
+        kegrid_err_mean += kegrid_err/(nassim-nassim_spinup)
+
     t2 = time.time()
     if profile:print('cpu time for ens forecast',t2-t1)
+
+import matplotlib.pyplot as plt
+plt.figure()
+print("# n err sprd %s %s" % (ncount,nassim-nassim_spinup))
+for n in range(ntrunc+1):
+    print('# ',n,kespec_err_mean[n],kespec_sprd_mean[n])
+kegrid_err = (kegrid_err_mean*globalmeanwts).sum()
+kegrid_sprd = (kegrid_sprd_mean*globalmeanwts).sum()
+print('# global mean err %s %s spread %s %s' % (np.sqrt(kespec_err_mean.sum()),np.sqrt(kegrid_err),np.sqrt(kespec_sprd_mean.sum()),np.sqrt(kegrid_sprd)))
+plt.loglog(np.arange(ntrunc+1),kespec_err_mean,color='r')
+plt.loglog(np.arange(ntrunc+1),kespec_sprd_mean,color='b')
+plt.title('error (red) and spread (blue) ke spectra')
+plt.savefig('keerrorspread_spectra_%s.png' % exptname)
