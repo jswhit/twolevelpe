@@ -39,7 +39,7 @@ wind_obs = False # assimilate vertical mean (barotropic) winds also
 oberrstdev = 1.0 # temp ob error in K
 oberrstdevw = 2.5 # ob err for vertical mean wind in mps
 nassim_spinup = 200
-nassim = 2200 # assimilation times to run
+nassim = 700 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
                # polynomial for localization.
 
@@ -54,14 +54,14 @@ div2_diff_efold = 3600. # divergence diffusion to damp GW
 np.random.seed(42)
 
 # model nature run to sample initial ensemble and draw additive noise.
-modelclimo_file = 'truth_twolevel_t%s_6h_jetexp0.nc' % ntrunc
+modelclimo_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
 ncm = Dataset(modelclimo_file)
 dt = ncm.dt
 rsphere = ncm.rsphere
 # 'truth' nature run to sample obs
 # (these two files can be the same for perfect model expts)
 # file to sample additive noise.
-truth_file = 'truth_twolevel_t%s_6h_jetexp0.nc' % ntrunc
+truth_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
@@ -207,8 +207,8 @@ fhassim = obtimes[1]-obtimes[0] # assim interval  (assumed constant)
 nsteps = int(fhassim*3600/models[0].dt) # time steps in assim interval
 print('# fhassim,nsteps = ',fhassim,nsteps)
 
-#savedata = None
-savedata = 'enkf_twolevel_test.nc'
+savedata = None
+#savedata = 'enkf_twolevel_test.nc'
 nout = 0
 if savedata is not None:
     ncout = Dataset(savedata,'w',format='NETCDF4_CLASSIC')
