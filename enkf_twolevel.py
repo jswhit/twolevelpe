@@ -39,7 +39,7 @@ wind_obs = False # assimilate vertical mean (barotropic) winds also
 oberrstdev = 1.0 # temp ob error in K
 oberrstdevw = 2.5 # ob err for vertical mean wind in mps
 nassim_spinup = 200
-nassim = 700 # assimilation times to run
+nassim = 2200 # assimilation times to run
 gaussian=False # if True, use Gaussian function similar to Gaspari-Cohn
                # polynomial for localization.
 
@@ -54,14 +54,14 @@ div2_diff_efold = 3600. # divergence diffusion to damp GW
 np.random.seed(42)
 
 # model nature run to sample initial ensemble and draw additive noise.
-modelclimo_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
+modelclimo_file = 'truth_twolevel_t%s_6h_jetexp0.nc' % ntrunc
 ncm = Dataset(modelclimo_file)
 dt = ncm.dt
 rsphere = ncm.rsphere
 # 'truth' nature run to sample obs
 # (these two files can be the same for perfect model expts)
 # file to sample additive noise.
-truth_file = 'truth_twolevel_t%s_6h.nc' % ntrunc
+truth_file = 'truth_twolevel_t%s_6h_jetexp0.nc' % ntrunc
 
 # create spherical harmonic transform instance
 sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
@@ -207,8 +207,8 @@ fhassim = obtimes[1]-obtimes[0] # assim interval  (assumed constant)
 nsteps = int(fhassim*3600/models[0].dt) # time steps in assim interval
 print('# fhassim,nsteps = ',fhassim,nsteps)
 
-savedata = None
-#savedata = 'enkf_twolevel_test.nc'
+#savedata = None
+savedata = 'enkf_twolevel_test.nc'
 nout = 0
 if savedata is not None:
     ncout = Dataset(savedata,'w',format='NETCDF4_CLASSIC')
@@ -384,10 +384,10 @@ for ntime in range(nassim):
     if profile: print('cpu time for forward operator',t2-t1)
 
     if savedata:
-        u_ensb[nout,0,...] = uensbt - uensbc
-        u_ensb[nout,1,...] = uensbc + uensbt
-        v_ensb[nout,0,...] = vensbt - vensbc
-        v_ensb[nout,1,...] = vensbc + vensbt
+        u_ensb[nout,:,0,:,:] = uensbt - uensbc
+        u_ensb[nout,:,1,:,:] = uensbc + uensbt
+        v_ensb[nout,:,0,:,:] = vensbt - vensbc
+        v_ensb[nout,:,1,:,:] = vensbc + vensbt
         thet_ensb[nout] = thetaens
         w_ensb[nout] = wens
         oblats_var[nout] = oblats
@@ -507,10 +507,10 @@ for ntime in range(nassim):
 
     # write out data.
     if savedata:
-        u_ensa[nout,0,...] = uensbt - uensbc
-        u_ensa[nout,1,...] = uensbc + uensbt
-        v_ensa[nout,0,...] = vensbt - vensbc
-        v_ensa[nout,1,...] = vensbc + vensbt
+        u_ensa[nout,:,0,:,:] = uensbt - uensbc
+        u_ensa[nout,:,1,:,:] = uensbc + uensbt
+        v_ensa[nout,:,0,:,:] = vensbt - vensbc
+        v_ensa[nout,:,1,:,:] = vensbc + vensbt
         thet_ensa[nout] = thetaens
         w_ensa[nout] = wens
         u_truth[nout] = utruth[ntime]
