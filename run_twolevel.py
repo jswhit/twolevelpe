@@ -33,8 +33,7 @@ nstart = int((200.*86400.)/dt) # end of spinup period
 nmax = int((3200.*86400.)/dt) # total duration of run
 
 # create model instance
-#model = TwoLevel(sp,dt,jetexp=4,umax=50,tdrag=4.*86400,tdiab=20.*86400.)
-model = TwoLevel(sp,dt,jetexp=0,umax=45,tdrag=4.*86400,tdiab=20.*86400.)
+model = TwoLevel(sp,dt,jetexp=0,umax=50,tdrag=4.*86400,tdiab=20.*86400.)
 print('pole/equator temp diff = ', model.thetaref.max()-model.thetaref.min())
 
 # vort, div initial conditions
@@ -56,7 +55,7 @@ nc.rsphere = rsphere
 nc.gridtype = gridtype
 nc.ntrunc = ntrunc
 nc.dt = dt
-atts = ['grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp','moistfact']
+atts = ['grav','omega','cp','rgas','p0','ptop','delth','efold','ndiss','tdrag','tdiab','umax','jetexp']
 for att in atts:
     nc.setncattr(att,model.__dict__[att])
 lat = nc.createDimension('lat',sp.nlats)

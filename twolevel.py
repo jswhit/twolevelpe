@@ -11,7 +11,7 @@ class TwoLevel(object):
 
     def __init__(self,sp,dt,ptop=0.,p0=1.e5,grav=9.80616,omega=7.292e-5,cp=1004,\
             rgas=287.,efold=3600.,div2_diff_efold=1.e30,ndiss=8,tdrag=4.*86400,tdiab=20.*86400.,\
-            umax=40,jetexp=2,delth=20,moistfact=0.0):
+            umax=40,jetexp=2,delth=20):
         # set model parameters
         self.p0 = p0 # mean surface pressure
         self.ptop = ptop # model top pressure
@@ -33,7 +33,6 @@ class TwoLevel(object):
         self.dt = dt # time step (secs)
         self.tdiab = tdiab # lower layer drag timescale
         self.tdrag = tdrag # interface relaxation timescale
-        self.moistfact = moistfact # stability reduction factor in rising air.
         # create lat/lon arrays
         delta = 2.*np.pi/sp.nlons
         lons1d = np.arange(-np.pi,np.pi,delta)
@@ -139,10 +138,6 @@ class TwoLevel(object):
         # add hyperdiffusion, thermal relaxation and vertical advection to temp eqn
         dthetadtspec += self.hyperdiff*thetaspec +\
         (self.thetarefspec-thetaspec)/self.tdiab - 0.5*self.delth*divspec
-        if self.moistfact > 0.: # latent heading
-            # reduced static stability in rising air 
-            heating = 0.5*self.delth*self.moistfact*0.5*(divg+abs(divg))
-            dthetadtspec += self.sp.grdtospec(heating)
         return dvrtdtspec,ddivdtspec,dthetadtspec
 
     def rk4step(self,vrtspec,divspecin,thetaspec):
@@ -183,7 +178,7 @@ if __name__ == "__main__":
     # grid, time step info
     nlons = 192 # number of longitudes
     ntrunc = 64  # spectral truncation (for alias-free computations)
-    dt = 1800 # time step in seconds
+    dt = 1200 # time step in seconds
     nlats = nlons//2  # for regular grid.
     gridtype = 'gaussian'
 
@@ -191,13 +186,12 @@ if __name__ == "__main__":
     rsphere = 6.37122e6 # earth radius
     sp = Spharmt(nlons,nlats,ntrunc,rsphere,gridtype=gridtype)
 
-    # create model instance.
-    #div2_diff_efold = 1.e30
-    div2_diff_efold = 3600.
-    moistfact = 0.0
-    jetexp = 2
+    # create model instance using default parameters.
+    div2_diff_efold = 1.e30
+    #div2_diff_efold = 1800.
     umax = 50.
-    model = TwoLevel(sp,dt,jetexp=jetexp,umax=umax,tdrag=2.*86400,tdiab=14.*86400.,div2_diff_efold=div2_diff_efold,moistfact=moistfact)
+    model = TwoLevel(sp,dt,jetexp=0,umax=umax,tdrag=4.*86400,tdiab=20.*86400.,div2_diff_efold=div2_diff_efold)
+
     psipert = np.zeros((2,model.nlat,model.nlon),np.float32)
     psipert[1,:,:] = 5.e6*np.sin((model.lons-np.pi))**12*np.sin(2.*model.lats)**12
     psipert = np.where(model.lons[np.newaxis,:,:] > 0., 0, psipert)
@@ -218,6 +212,7 @@ if __name__ == "__main__":
     varplot = 'theta'
     #varplot = 'w'
     #varplot = 'u'
+    varplot = 'vrt'
     if varplot == 'theta':
         data = model.theta - thetamean
         vmax = 40; vmin = -vmax
@@ -225,6 +220,10 @@ if __name__ == "__main__":
     elif varplot == 'u':
         data = model.u[1]
         vmax = 120; vmin = -vmax
+        cmap = plt.cm.bwr
+    elif varplot == 'vrt':
+        data = 0.5*(model.vrt[1]+model.vrt[0])
+        vmax = 2.e-4; vmin = -vmax
         cmap = plt.cm.bwr
     else:
         data = model.w
@@ -248,6 +247,8 @@ if __name__ == "__main__":
             im.set_data(model.theta - thetamean)
         elif varplot == 'u':
             im.set_data(model.u[1])
+        elif varplot == 'vrt':
+            im.set_data(0.5*(model.vrt[1]+model.vrt[0]))
         else:
             im.set_data(model.w)
         txt.set_text('%s day %10.2f' % \
